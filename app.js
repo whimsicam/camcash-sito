@@ -317,6 +317,22 @@ function headPagina(eyebrow, titolo, chips = '') {
 }
 const chipDati = () => `<span class="chip">dati al ${D.data_al.split('-').reverse().slice(0, 2).join('/')}</span>`;
 
+// entrate e spese del mese + barra dello stipendio (spese / investito / resto)
+function soldiMese(a, info) {
+  let ent = a.entrate, att = false;
+  if (info.corrente && a.ricavi.Salary <= 0 && D.stipendio_atteso) { ent += D.stipendio_atteso; att = true; }
+  const sp = Math.max(a.costi, 0), inv = Math.max(a.pac, 0) + Math.max(a.invExtra, 0);
+  const resto = ent - sp - inv, tot = Math.max(ent, sp + inv) || 1;
+  const invLbl = a.invExtra > 0.5 ? 'Investito' : 'PAC';
+  const extra = a.ricavi.Extra > 0.5 ? `<div class="k">di cui extra ${eur0(a.ricavi.Extra)}</div>` : '';
+  const seg = (v, c) => v > 0.5 ? `<i style="flex:${v};background:${c}"></i>` : '';
+  return `<div class="duo"><div><div class="k">Entrate</div><div class="v ${att ? 'att' : ''}">${eur0(ent)}${att ? ' <small>attesi</small>' : ''}</div>${extra}</div>
+      <div><div class="k">Spese</div><div class="v">${eur0(sp)}</div></div></div>
+    <div class="sbar ${att ? 'dashed' : ''}">${seg(sp, 'var(--ink)')}${seg(inv, '#9FD8B8')}${seg(Math.max(resto, 0), '#EFE9DD')}</div>
+    <div class="sleg"><span><i class="dot" style="background:var(--ink)"></i>Spese <b>${eur0(sp)}</b></span>${inv > 0.5 ? `<span><i class="dot" style="background:#9FD8B8"></i>${invLbl} <b>${eur0(inv)}</b></span>` : ''}
+      ${resto >= 0 ? `<span><i class="dot" style="background:#E2DCD0"></i>${info.corrente ? 'Restano' : 'Risparmio'} <b>${eur0(resto)}</b></span>` : `<span class="neg">Dalla liquidità <b>${eur0(-resto)}</b></span>`}</div>`;
+}
+
 function vistaMese(k, chiusoForzato) {
   const info = infoMese(k);
   const prec = chiusoForzato;
@@ -328,26 +344,25 @@ function vistaMese(k, chiusoForzato) {
   const a = agg(k, info.fino);
   const bud = budgetCosti(k, false), spesoNoWT = a.costiNoWT;
   let hero;
+  const gg = info.n - info.fino;
   if (info.corrente) {
-    const resta = bud - spesoNoWT, gg = info.n - info.fino;
-    const quota = Math.min(spesoNoWT / (bud || 1), 1), atteso = info.fino / info.n;
+    const resta = bud - spesoNoWT, atteso = info.fino / info.n;
     const ritmoChip = spesoNoWT > bud * atteso ? '<span class="chip coral">Sopra il ritmo</span>' : '<span class="chip mint">In linea</span>';
     const [ii, dd] = num(Math.abs(resta)).split(',');
+    const quando = resta > 0 && gg > 0 ? `≈ ${eur0(resta / gg)} al giorno · ${gg} ${gg === 1 ? 'giorno' : 'giorni'}` : gg > 0 ? `${gg} ${gg === 1 ? 'giorno' : 'giorni'} alla fine` : 'ultimo giorno del mese';
     hero = card(`<div class="card-head"><span class="label">${resta >= 0 ? 'Puoi ancora spendere' : 'Sei oltre il budget di'}</span>${ritmoChip}</div>
       <div class="big ${resta < 0 ? 'neg' : ''}">${ii}<span class="dec">,${dd} €</span></div>
-      <div class="line">${resta > 0 && gg > 0 ? `≈ ${eur0(resta / gg)} al giorno · ${gg} ${gg === 1 ? 'giorno' : 'giorni'}` : gg > 0 ? `${gg} giorni alla fine del mese` : 'Ultimo giorno del mese'}</div>
-      <div class="progress"><i class="${spesoNoWT > bud ? 'over' : ''}" style="width:${quota * 100}%"></i></div>
-      <div class="meta"><span>Speso ${eur0(spesoNoWT)}</span><span>Budget ${eur0(bud)}</span></div>
-      <div class="note">${gg > 0 && info.fino < ymd(OGGI)[2] ? `Dati fino al ${info.fino}: la cifra al giorno vale dal ${info.fino + 1} in poi. ` : ''}Viaggi esclusi: hanno il Fondo viaggi.</div>`, 'hero s5');
+      <div class="line">budget ${eur0(bud)} · ${quando}</div>
+      ${soldiMese(a, info)}
+      <div class="note">${gg > 0 && info.fino < ymd(OGGI)[2] ? `Dati fino al ${info.fino}: la cifra al giorno vale dal ${info.fino + 1}. ` : ''}Viaggi esclusi dal budget (Fondo viaggi).</div>`, 'hero s5');
   } else {
     const [ii, dd] = num(a.utile).split(',');
     const q = spesoNoWT / (bud || 1);
-    hero = card(`<div class="card-head"><span class="label">Risultato del mese (utile)</span><span class="chip ${a.utile >= 0 ? 'mint' : 'coral'}">${a.utile >= 0 ? 'Risparmio' : 'In perdita'}</span></div>
+    hero = card(`<div class="card-head"><span class="label">Risultato del mese</span><span class="chip ${a.utile >= 0 ? 'mint' : 'coral'}">${a.utile >= 0 ? 'Risparmio' : 'In perdita'}</span></div>
       <div class="big ${a.utile < 0 ? 'neg' : ''}">${a.utile > 0 ? '+' : ''}${ii}<span class="dec">,${dd} €</span></div>
-      <div class="line">Entrate ${eur0(a.entrate)} · spese ${eur0(a.costi)} · savings rate ${a.entrate > 0 ? pct(a.utile / a.entrate) : '–'}</div>
-      <div class="progress"><i class="${q > 1 ? 'over' : ''}" style="width:${Math.min(q, 1) * 100}%"></i></div>
-      <div class="meta"><span>Budget usato ${pct(q)}</span><span>${eur0(spesoNoWT)} / ${eur0(bud)}</span></div>
-      <div class="note">Budget usato senza viaggi; l'utile li comprende.</div>`, 'hero s5');
+      <div class="line">savings rate ${a.entrate > 0 ? pct(a.utile / a.entrate) : '–'} · budget usato ${pct(q)}</div>
+      ${soldiMese(a, info)}
+      <div class="note">Viaggi esclusi dal budget (Fondo viaggi); l'utile li comprende.</div>`, 'hero s5');
   }
   const p = prec ? 'p' : 'm';
   return headPagina(eyebrow, meseTit(k), chipDati() + (info.corrente ? '' : '<span class="chip">mese chiuso</span>')) +

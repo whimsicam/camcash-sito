@@ -85,6 +85,20 @@ details.card .body>.panel:first-child{margin-top:0}
 .hero .progress i.over{background:var(--coral)}
 .hero .meta{display:flex;justify-content:space-between;font-size:12px;color:var(--muted);margin-top:6px}
 
+/* entrate / spese nel riquadro principale */
+.hero .line{margin-bottom:2px}
+.duo{display:grid;grid-template-columns:1fr 1fr;gap:10px;margin-top:16px}
+.duo>div{background:var(--panel);border-radius:var(--radius-s);padding:10px 14px}
+.duo .k{font-size:12px;color:var(--muted);font-weight:500}
+.duo .v{font-size:21px;font-weight:700;letter-spacing:-.02em;white-space:nowrap}
+.duo .v.att{color:var(--muted)} .duo .v small{font-size:12px;font-weight:500}
+.sbar{display:flex;gap:3px;height:14px;margin-top:14px;border-radius:99px}
+.sbar i{display:block;height:100%;border-radius:99px;min-width:6px}
+.sbar.dashed{height:20px;padding:2px;border:1.5px dashed #D9D4CB}
+.sleg{display:flex;flex-wrap:wrap;gap:4px 16px;margin-top:8px;font-size:12.5px;color:var(--ink-2)}
+.sleg span{display:flex;align-items:center;gap:5px;white-space:nowrap}
+.sleg b{font-weight:700;color:var(--ink)} .sleg .neg,.sleg .neg b{color:var(--coral-ink)}
+
 /* segmented */
 .seg{display:inline-flex;background:var(--panel);border-radius:999px;padding:3px;gap:2px}
 .seg button{border:0;background:none;padding:6px 12px;border-radius:999px;font-size:12.5px;font-weight:600;color:var(--ink-2)}
