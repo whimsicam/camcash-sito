@@ -173,6 +173,20 @@ function ritmo(w, n, punti, budgetTot, opts = {}) {
   return svg(w, h, s);
 }
 
+/* ------------------------------------------------------------------ legende con simboli */
+function chiave(voci) {
+  const sym = (t, c) => {
+    const st = c || '#1C1B1B';
+    if (t === 'linea') return `<svg width="20" height="10"><line x1="1" y1="5" x2="19" y2="5" stroke="${st}" stroke-width="2.6" stroke-linecap="round"/></svg>`;
+    if (t === 'tratt') return `<svg width="20" height="10"><line x1="1" y1="5" x2="19" y2="5" stroke="${c || '#8B867D'}" stroke-width="2" stroke-dasharray="4 3"/></svg>`;
+    if (t === 'tacca') return `<svg width="10" height="12"><line x1="5" y1="1" x2="5" y2="11" stroke="${st}" stroke-width="2.5" stroke-linecap="round"/></svg>`;
+    if (t === 'trattino') return `<svg width="16" height="10"><line x1="2" y1="5" x2="14" y2="5" stroke="${st}" stroke-width="2.4" stroke-linecap="round"/></svg>`;
+    if (t === 'chip') return `<span class="chip coral sm">+€</span>`;
+    return `<i style="display:inline-block;width:16px;height:8px;border-radius:99px;background:${c}"></i>`;
+  };
+  return `<div class="key">${voci.map(([t, c, l]) => `<span>${sym(t, c)}${l}</span>`).join('')}</div>`;
+}
+
 /* ------------------------------------------------------------------ componenti */
 function card(html, cls = '') { return `<section class="card ${cls}">${html}</section>`; }
 function acc(id, titolo, chip, body, cls = '') {
@@ -236,7 +250,7 @@ function cardRitmo(a, info, id) {
   const chip = info.fino ? `<span class="chip ${diff > 0 ? 'coral' : 'mint'}">${diff > 0 ? '+' : '−'}${num(Math.abs(diff), 0)} € ${diff > 0 ? 'sopra il ritmo' : 'sotto il ritmo'}</span>` : '';
   return acc(id, 'Ritmo di spesa', chip,
     `<div class="panel" data-w="${id}">${ritmo(larghezza(`[data-w="${id}"]`) - 28, info.n, pts, bud, { etichetta: info.fino ? `${info.fino} ${MESI_B[ymd(info.k)[1] - 1].toLowerCase()} · ${num(speso, 0)} €` : '' })}</div>
-     <div class="note">Spesa cumulata giorno per giorno contro la linea del budget (viaggi esclusi: hanno il loro fondo).</div>`, 's5');
+     ${chiave([['linea', '', 'spesa cumulata'], ['tratt', '', 'budget del mese']])}<div class="note">Viaggi esclusi (Fondo viaggi).</div>`, 's5');
 }
 
 function destinazioni(a, k, aperto) {
@@ -265,7 +279,7 @@ function cardFlusso(a, info, id, titoloPeriodo) {
   const w = larghezza(`[data-w="${id}"]`) - 28;
   return acc(id, 'Dove vanno i soldi', chip,
     `<div class="panel" data-w="${id}">${sankey(w, lbl, entrate, dest)}</div>
-     <div class="note">${atteso ? 'Lo stipendio del mese non è ancora arrivato: uso quello atteso (' + num(D.stipendio_atteso, 0) + ' €). ' : ''}Le prime 5 categorie per spesa, le altre raccolte in "Altre spese"; in corallo quanto sono sopra budget.</div>`, 's7');
+     <div class="note">${atteso ? 'Lo stipendio del mese non è ancora arrivato: uso quello atteso (' + num(D.stipendio_atteso, 0) + ' €). ' : ''}Le prime 5 categorie per spesa, le altre raccolte in "Altre spese".</div>${chiave([['chip', '', 'quanto la categoria è sopra budget']])}`, 's7');
 }
 
 function colore(v, max) {
@@ -326,8 +340,8 @@ function soldiMese(a, info) {
   const invLbl = a.invExtra > 0.5 ? 'Investito' : 'PAC';
   const extra = a.ricavi.Extra > 0.5 ? `<div class="k">di cui extra ${eur0(a.ricavi.Extra)}</div>` : '';
   const seg = (v, c) => v > 0.5 ? `<i style="flex:${v};background:${c}"></i>` : '';
-  return `<div class="duo"><div><div class="k">Entrate</div><div class="v ${att ? 'att' : ''}">${eur0(ent)}${att ? ' <small>attesi</small>' : ''}</div>${extra}</div>
-      <div><div class="k">Spese</div><div class="v">${eur0(sp)}</div></div></div>
+  return `<div class="duo"><div><div class="k">Entrate</div><div class="v in ${att ? 'att' : ''}">${eur0(ent)}${att ? ' <small>attesi</small>' : ''}</div>${extra}</div>
+      <div><div class="k">Spese</div><div class="v out">${eur0(sp)}</div></div></div>
     <div class="sbar ${att ? 'dashed' : ''}">${seg(sp, 'var(--ink)')}${seg(inv, '#9FD8B8')}${seg(Math.max(resto, 0), '#EFE9DD')}</div>
     <div class="sleg"><span><i class="dot" style="background:var(--ink)"></i>Spese <b>${eur0(sp)}</b></span>${inv > 0.5 ? `<span><i class="dot" style="background:#9FD8B8"></i>${invLbl} <b>${eur0(inv)}</b></span>` : ''}
       ${resto >= 0 ? `<span><i class="dot" style="background:#E2DCD0"></i>${info.corrente ? 'Restano' : 'In liquidità'} <b>${eur0(resto)}</b></span>` : `<span class="neg">Dalla liquidità <b>${eur0(-resto)}</b></span>`}</div>`;
@@ -396,7 +410,7 @@ function vistaConfronto() {
   }).join('');
   const piu = righe.filter(x => x.d > 0.5).length, meno = righe.filter(x => x.d < -0.5).length;
   const cardDiv = acc('cdiv', 'Scostamenti per categoria', `<span class="chip">${meno} in calo · ${piu} in aumento</span>`,
-    `<div class="panel"><div class="div-list">${div}</div></div><div class="note">Sinistra (verde) = hai speso meno di ${rifNome}; destra (corallo) = di più.</div>`, 's7');
+    `<div class="panel"><div class="div-list">${div}</div></div>${chiave([['bar', 'var(--mint)', 'meno di ' + rifNome], ['bar', 'var(--coral)', 'più di ' + rifNome]])}`, 's7');
   // ritmo a confronto
   const ptsCur = []; let c = 0; for (let d = 1; d <= g; d++) { c += cur.giorno[d] || 0; ptsCur.push([d, c]); }
   const n = info.n, rifFull = rifMesi.map(m => agg(m));
@@ -404,13 +418,12 @@ function vistaConfronto() {
   for (let d = 1; d <= n; d++) { cr = cr.map((v, i) => v + (d <= giorniMese(rifMesi[i]) ? (rifFull[i].giorno[d] || 0) : 0)); ptsRif.push([d, cr.reduce((s, v) => s + v, 0) / cr.length]); }
   const cardRit = acc('crit', 'Ritmo a confronto', `<span class="chip">${meseNome(k)} vs ${rifNome}</span>`,
     `<div class="panel" data-w="crit">${ritmo(larghezza('[data-w="crit"]') - 28, n, ptsCur, 0, { rif: ptsRif, etichetta: `${g} · ${num(c, 0)} €` })}</div>
-     <div class="legend"><div><i class="dot" style="background:#1C1B1B"></i><span class="n">${meseTit(k)}</span></div><div><i class="dot" style="background:#C3A6EE"></i><span class="n">${rifNome[0].toUpperCase() + rifNome.slice(1)}</span></div></div>
-     <div class="note">Spesa cumulata senza viaggi.</div>`, 's5');
+     ${chiave([['linea', '', meseTit(k)], ['linea', '#C3A6EE', rifNome[0].toUpperCase() + rifNome.slice(1)]])}<div class="note">Spesa cumulata senza viaggi.</div>`, 's5');
   const maxP = Math.max(...righe.map(x => Math.max(x.a, x.r)), 1);
   const pair = righe.slice().sort((x, y) => y.a - x.a).map(x => `<div class="pair"><div class="bar-row"><div class="top"><span>${esc(x.c)}</span><span class="v">${eur0(x.a)} <small>vs ${eur0(x.r)}</small></span></div></div>
       <div class="tr"><i style="width:${Math.max(x.a, 0) / maxP * 100}%;background:${COLORI[x.c]}"></i></div><div class="tr"><i style="width:${Math.max(x.r, 0) / maxP * 100}%;background:#D9D4CB"></i></div></div>`).join('');
   const cardPair = acc('cpair', 'Categorie a confronto', `<span class="chip">${righe.length} categorie</span>`,
-    `<div class="panel"><div class="bars-list" style="margin-top:0">${pair}</div></div><div class="note">Barra colorata = ${meseNome(k)}, grigia = ${rifNome}.</div>`, 's7');
+    `<div class="panel"><div class="bars-list" style="margin-top:0">${pair}</div></div>${chiave([['bar', '#B8C0EC', meseTit(k)], ['bar', '#D9D4CB', rifNome[0].toUpperCase() + rifNome.slice(1)]])}`, 's7');
   return headPagina('Confronto', meseTit(k), chipDati() + `<span class="chip">${parita}</span>`) + seg + '<div style="height:14px"></div>' +
     colonne([[1, kpi], [3, cardRit]], [[2, cardDiv], [4, cardPair]]);
 }
@@ -449,7 +462,7 @@ function vistaAnno() {
   if (liq >= 0.5) { ds.push({ l: 'In liquidità', v: liq, c: COLORI['In liquidità'] }); chipF = `<span class="chip mint">${num(liq, 0)} € in liquidità</span>`; }
   else { ent = usc; lbl = 'Entrate + liquidità'; chipF = `<span class="chip coral">${num(-liq, 0)} € dalla liquidità</span>`; }
   const cardFlu = acc('aflu', 'Dove vanno i soldi', chipF, `<div class="panel" data-w="aflu">${sankey(larghezza('[data-w="aflu"]') - 28, lbl, ent, ds)}</div>
-    <div class="note">${periodo}. In corallo quanto sono sopra il budget cumulato.</div>`, 's7');
+    <div class="note">${periodo}.</div>${chiave([['chip', '', 'quanto la categoria è sopra il budget cumulato']])}`, 's7');
   // barre mensili impilate
   const W = larghezza('[data-w="abar"]') - 28, H = 200, pT = 18, pB = 22, bw = (W / 12) * 0.62;
   const maxV = Math.max(...mesi.map(m => Math.max(ag[m] ? ag[m].costi : 0, budgetCosti(m)))) * 1.08 || 1;
@@ -469,7 +482,7 @@ function vistaAnno() {
   });
   const legCat = COSTI.filter(c => att.some(m => ag[m].spese[c] > 0)).map(c => `<div><i class="dot" style="background:${COLORI[c]}"></i><span class="n">${esc(c)}</span></div>`).join('');
   const cardBar = acc('abar', 'Spese per mese', `<span class="chip">media ${num(costi / att.length, 0)} €</span>`,
-    `<div class="panel" data-w="abar">${svg(W, H, sb)}</div><div class="legend">${legCat}</div><div class="note">Trattino nero = budget del mese (viaggi inclusi).</div>`, 's7');
+    `<div class="panel" data-w="abar">${svg(W, H, sb)}</div><div class="legend">${legCat}</div>${chiave([['trattino', '', 'budget del mese (viaggi inclusi)']])}`, 's7');
   // cumulata vs budget
   const H2 = 180, pT2 = 22, pB2 = 22;
   let cA = 0, cB = 0; const pa = [], pb = [];
@@ -482,11 +495,11 @@ function vistaAnno() {
   s2 += `<text x="${X2(11)}" y="${Y2(cB) - 8}" text-anchor="end" class="lbl">budget anno ${num(cB, 0)} €</text>`;
   mesi.forEach((m, i) => s2 += `<text x="${X2(i)}" y="${H2 - 4}" text-anchor="middle" class="lbl">${MESI_B[i][0]}</text>`);
   const cardCum = acc('acum', 'Spesa cumulata vs budget', `<span class="chip ${diffC > 0 ? 'coral' : 'mint'}">${num(Math.abs(diffC), 0)} € ${diffC > 0 ? 'sopra' : 'sotto'}</span>`,
-    `<div class="panel">${svg(W, H2, s2)}</div><div class="note">Linea nera = spese cumulate, tratteggio = budget cumulato (viaggi inclusi). Il budget è stato fissato a ottobre: per i mesi prima è un metro di paragone, non un impegno preso allora.</div>`, 's5');
+    `<div class="panel">${svg(W, H2, s2)}</div>${chiave([['linea', '', 'spese cumulate'], ['tratt', '', 'budget cumulato']])}<div class="note">Viaggi inclusi. Il budget è stato fissato a ottobre: per i mesi prima è un metro di paragone, non un impegno preso allora.</div>`, 's5');
   // savings rate mensile
   const sr = mesi.map(m => (ag[m] && chiusi.includes(m) && ag[m].entrate > 0) ? ag[m].utile / ag[m].entrate : null);
   const vals = sr.filter(v => v !== null), mxS = Math.max(0.1, ...vals), mnS = Math.min(0, ...vals);
-  const H3 = 170, Y3 = v => 22 + (mxS - v) / (mxS - mnS) * (H3 - 44);
+  const H3 = 180, Y3 = v => 22 + (mxS - v) / (mxS - mnS) * (H3 - 62);
   let s3 = `<line x1="0" x2="${W}" y1="${Y3(0)}" y2="${Y3(0)}" stroke="#D9D4CB"/>`;
   const bw3 = (W / 12) * 0.56;
   sr.forEach((v, i) => {
@@ -501,7 +514,7 @@ function vistaAnno() {
   });
   const mediaSR = vals.length ? vals.reduce((s, v) => s + v, 0) / vals.length : 0;
   const cardSR = acc('asr', 'Savings rate mensile', `<span class="chip">media ${pct(mediaSR)}</span>`,
-    `<div class="panel">${svg(W, H3, s3)}</div><div class="note">Utile / entrate dei mesi chiusi (13ª, 14ª e bonus inclusi). Media semplice dei mesi.</div>`, 's7');
+    `<div class="panel">${svg(W, H3, s3)}</div>${chiave([['bar', '#9FD8B8', 'risparmio'], ['bar', '#F2A48F', 'perdita']])}<div class="note">Utile / entrate dei mesi chiusi (13ª, 14ª e bonus inclusi). Media semplice dei mesi.</div>`, 's7');
   // calendario annuale
   const dal = `${y}-01-01`, al = D.data_al < `${y}-12-31` ? D.data_al : `${y}-12-31`;
   const g = spesaGiorni(dal, al), maxG = 120;
