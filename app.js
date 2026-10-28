@@ -330,7 +330,7 @@ function soldiMese(a, info) {
       <div><div class="k">Spese</div><div class="v">${eur0(sp)}</div></div></div>
     <div class="sbar ${att ? 'dashed' : ''}">${seg(sp, 'var(--ink)')}${seg(inv, '#9FD8B8')}${seg(Math.max(resto, 0), '#EFE9DD')}</div>
     <div class="sleg"><span><i class="dot" style="background:var(--ink)"></i>Spese <b>${eur0(sp)}</b></span>${inv > 0.5 ? `<span><i class="dot" style="background:#9FD8B8"></i>${invLbl} <b>${eur0(inv)}</b></span>` : ''}
-      ${resto >= 0 ? `<span><i class="dot" style="background:#E2DCD0"></i>${info.corrente ? 'Restano' : 'Risparmio'} <b>${eur0(resto)}</b></span>` : `<span class="neg">Dalla liquidità <b>${eur0(-resto)}</b></span>`}</div>`;
+      ${resto >= 0 ? `<span><i class="dot" style="background:#E2DCD0"></i>${info.corrente ? 'Restano' : 'In liquidità'} <b>${eur0(resto)}</b></span>` : `<span class="neg">Dalla liquidità <b>${eur0(-resto)}</b></span>`}</div>`;
 }
 
 function vistaMese(k, chiusoForzato) {
