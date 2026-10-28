@@ -2,13 +2,15 @@
 'use strict';
 
 /* ------------------------------------------------------------------ costanti */
-const COLORI = {
+const COLORI_BASE = {
   'Housing': '#B8C0EC', 'Subscriptions': '#D4BBFC', 'Groceries': '#FDE293', 'Bar & Restaurant': '#F8B4D9',
   'Club': '#C3A6EE', 'Transport': '#A8DADC', 'Weekend & Travel': '#A9D4F5', 'Shopping': '#F9C9A8',
   'Health': '#F3D9B1', 'Hobby': '#C5E0B4', 'Admin': '#D9D4CB', 'Other': '#E8D5C4',
   'Altre spese': '#E2DCD0', 'PAC': '#9FD8B8', 'Investimenti extra': '#B9E3CC', 'In liquidità': '#EFE9DD',
   'Non ancora speso': '#EFE9DD'
 };
+const EXTRA = ['#F6C1C9', '#BFD7F2', '#E4D1F5', '#CDE8D9', '#FBD9A6', '#D8E4B8', '#F2CFE6', '#C9E4EC'];
+const COLORI = new Proxy(COLORI_BASE, { get: (t, k) => t[k] || EXTRA[[...String(k)].reduce((h, c) => (h * 31 + c.charCodeAt(0)) >>> 0, 7) % EXTRA.length] });
 const MESI = ['gennaio', 'febbraio', 'marzo', 'aprile', 'maggio', 'giugno', 'luglio', 'agosto', 'settembre', 'ottobre', 'novembre', 'dicembre'];
 const MESI_B = ['Gen', 'Feb', 'Mar', 'Apr', 'Mag', 'Giu', 'Lug', 'Ago', 'Set', 'Ott', 'Nov', 'Dic'];
 const GIORNI = ['Lun', 'Mar', 'Mer', 'Gio', 'Ven', 'Sab', 'Dom'];
@@ -52,7 +54,7 @@ let OGGI = null;             // 'YYYY-MM-DD'
 let COSTI = [], VARIAB = [];
 let stato = { tab: 'mese', confRif: 'prec', askCat: null };
 try { stato = Object.assign(stato, JSON.parse(localStorage.getItem('camcash.ui') || '{}')); } catch (e) { }
-function salvaUI() { try { localStorage.setItem('camcash.ui', JSON.stringify({ tab: stato.tab, confRif: stato.confRif, aperti: stato.aperti || {} })); } catch (e) { } }
+function salvaUI() { try { localStorage.setItem('camcash.ui', JSON.stringify({ tab: stato.tab, confRif: stato.confRif, vistaCat: stato.vistaCat, aperti: stato.aperti || {} })); } catch (e) { } }
 
 /* ------------------------------------------------------------------ calcoli */
 // aggregato di un mese di competenza fino al giorno `fino` (incluso)
@@ -101,39 +103,45 @@ function infoMese(k) {
 const svg = (w, h, inner, cls = '') => `<svg viewBox="0 0 ${w} ${h}" width="100%" class="${cls}" style="display:block;overflow:visible">${inner}</svg>`;
 function larghezza(sel, def = 340) { const el = document.querySelector(sel); return el ? Math.max(260, Math.floor(el.clientWidth)) : def; }
 
-/* donut: segmenti spessi, arrotondati e staccati */
+/* donut: spicchi con angoli arrotondati e stacchi fissi, senza sovrapposizioni */
 function donut(items, centro, size = 230) {
   const tot = items.reduce((s, i) => s + i.v, 0) || 1;
-  const sw = 30, r = (size - sw) / 2 - 4, C = 2 * Math.PI * r, gap = 7;
-  let off = 0, segs = '';
+  const c = size / 2, R0 = size / 2 - 4, th = 32, r0 = R0 - th, rm = (R0 + r0) / 2, gap = 6;
+  const P = (r, a) => `${(c + r * Math.sin(a)).toFixed(2)} ${(c - r * Math.cos(a)).toFixed(2)}`;
+  let a = 0, segs = '';
   for (const it of items) {
-    const L = it.v / tot * C;
-    const vis = Math.max(L - sw - gap, 0.01);
-    segs += `<circle cx="${size / 2}" cy="${size / 2}" r="${r}" fill="none" stroke="${it.c}" stroke-width="${sw}" stroke-linecap="round"
-      stroke-dasharray="${vis} ${C - vis}" stroke-dashoffset="${-(off + (sw + gap) / 2)}" transform="rotate(-90 ${size / 2} ${size / 2})"/>`;
-    off += L;
+    const span = it.v / tot * 2 * Math.PI, arc = span * rm - gap;
+    if (arc <= 0.5) { a += span; continue; }
+    const cr = Math.min(8, arc / 2 - 0.2, th / 2 - 0.5);          // raggio degli angoli
+    const R = R0 - cr, r = r0 + cr, d = (gap / 2 + cr) / rm;        // forma ridotta, poi "gonfiata" dal tratto
+    const a0 = a + d, a1 = a + span - d, big = a1 - a0 > Math.PI ? 1 : 0;
+    const path = a1 > a0
+      ? `M${P(R, a0)} A${R} ${R} 0 ${big} 1 ${P(R, a1)} L${P(r, a1)} A${r} ${r} 0 ${big} 0 ${P(r, a0)} Z`
+      : `M${P(R, (a0 + a1) / 2)} L${P(r, (a0 + a1) / 2)}`;
+    segs += `<path d="${path}" fill="${it.c}" stroke="${it.c}" stroke-width="${2 * cr}" stroke-linejoin="round" stroke-linecap="round"/>`;
+    a += span;
   }
-  return svg(size, size, segs + `<foreignObject x="${sw + 10}" y="${size / 2 - 42}" width="${size - 2 * sw - 20}" height="84">
+  return svg(size, size, segs + `<foreignObject x="${th + 14}" y="${c - 42}" width="${size - 2 * th - 28}" height="84">
     <div xmlns="http://www.w3.org/1999/xhtml" style="text-align:center;line-height:1.15">${centro}</div></foreignObject>`, 'donut').replace('width="100%"', `width="${size}"`);
 }
 
 /* sankey verticale: una barra di entrate in alto che si apre verso le destinazioni */
 function sankey(w, entrateLbl, entrate, dest) {
   const tot = dest.reduce((s, d) => s + d.v, 0) || 1;
-  const pillH = 40, y0 = pillH, y1 = 190, nodeH = 10, gap = 6, H = y1 + nodeH;
+  const pillH = 40, y0 = pillH, y1 = 186, yE = 200, gap = 6, H = yE;
   const usable = w - gap * (dest.length - 1), src = w * 0.62;
   let xs = (w - src) / 2, xd = 0, ribbons = '', nodes = '';
   dest.forEach(d => {
     const ws = d.v / tot * src, wd = Math.max(d.v / tot * usable, 3);
     const a0 = xs, a1 = xs + ws, b0 = xd, b1 = xd + wd, ym = (y0 + y1) / 2;
-    ribbons += `<path d="M${a0} ${y0} C${a0} ${ym} ${b0} ${ym} ${b0} ${y1} L${b1} ${y1} C${b1} ${ym} ${a1} ${ym} ${a1} ${y0} Z" fill="${d.c}" fill-opacity=".85" ${d.over ? 'stroke="#E07F66" stroke-width="1.5"' : ''}/>`;
-    nodes += `<rect x="${b0}" y="${y1}" width="${wd}" height="${nodeH}" rx="4" fill="${d.c}" ${d.over ? 'stroke="#E07F66" stroke-width="1.5"' : ''}/>`;
+    const rr = Math.min(5, (b1 - b0) / 2);
+    ribbons += `<path d="M${a0} ${y0} C${a0} ${ym} ${b0} ${ym} ${b0} ${y1} L${b0} ${yE - rr} Q${b0} ${yE} ${b0 + rr} ${yE} L${b1 - rr} ${yE} Q${b1} ${yE} ${b1} ${yE - rr} L${b1} ${y1} C${b1} ${ym} ${a1} ${ym} ${a1} ${y0} Z" fill="${d.c}"/>`;
     xs = a1; xd = b1 + gap;
   });
   const pill = `<rect x="0" y="0" width="${w}" height="${pillH}" rx="${pillH / 2}" fill="#1C1B1B"/>
     <text x="18" y="${pillH / 2 + 5}" style="font-size:14px;font-weight:700;fill:#fff">${esc(entrateLbl)}</text>
     <text x="${w - 18}" y="${pillH / 2 + 5}" text-anchor="end" style="font-size:15px;font-weight:800;fill:#fff">${num(entrate)} €</text>`;
-  const legenda = `<div class="legend">${dest.map(d => `<div><i class="dot" style="background:${d.c}"></i><span class="n">${esc(d.l)}</span><span class="v ${d.over ? 'over' : ''}">${eur0(d.v)}</span></div>`).join('')}</div>`;
+  const legenda = `<div class="legend flow">${dest.map(d => `<div><i class="dot" style="background:${d.c}"></i><span class="n">${esc(d.l)}${d.over ? ` <span class="chip coral sm">+${num(d.over, 0)}\u00A0€</span>` : ''}</span><span class="v">${eur0(d.v)}</span></div>`).join('')}</div>`;
   return svg(w, H, ribbons + nodes + pill) + legenda;
 }
 
@@ -194,12 +202,18 @@ function cardCategorie(a, k, id) {
       <div class="name">${esc(r.c)} ${over ? `<span class="chip coral">+${num(d, 0)} €</span>` : ''}</div>
       <div class="amt">${eur(r.v)}<small>su ${eur0(r.b)}</small></div></div>`;
   }).join('');
+  const BM = 70; // posizione della tacca del budget (% della larghezza), uguale per tutte
   const barre = righe.slice().sort((x, y) => y.v - x.v).map(r => {
-    const max = Math.max(r.v, r.b, 1), over = r.v > r.b + 0.5;
-    return `<div class="bar-row"><div class="top"><span>${esc(r.c)}</span><span class="v">${eur0(r.v)} <small>/ ${eur0(r.b)}</small></span></div>
-      <div class="bar-track"><div class="fill" style="width:${Math.max(r.v, 0) / max * 100}%;background:${over ? 'var(--coral)' : COLORI[r.c]}"></div>
-      ${r.b ? `<div class="mark" style="left:calc(${r.b / max * 100}% - 1px)"></div>` : ''}</div></div>`;
-  }).join('');
+    const v = Math.max(r.v, 0), over = v - r.b;
+    let dentro, fuori;
+    if (r.b > 0) { dentro = Math.min(v, r.b) / r.b * BM; fuori = over > 0 ? Math.min(over / r.b * BM, 100 - BM) : 0; }
+    else { dentro = 0; fuori = v > 0 ? Math.min(v / 100 * BM, 100) : 0; }
+    const pieno = over > 0 && (r.b > 0 ? over / r.b * BM > 100 - BM : true);
+    return `<div class="bar-row"><div class="top"><span>${esc(r.c)}</span><span class="v">${over > 0.5 ? `<span class="chip coral sm">+${num(over, 0)} €</span> ` : ''}${eur0(r.v)} <small>/ ${eur0(r.b)}</small></span></div>
+      <div class="bar-track">${dentro ? `<div class="fill" style="width:${dentro}%;background:${COLORI[r.c]}"></div>` : ''}
+      ${fuori ? `<div class="fill over ${pieno ? 'cut' : ''}" style="left:${r.b > 0 ? BM : 0}%;width:${fuori}%"></div>` : ''}
+      <div class="mark" style="left:calc(${r.b > 0 ? BM : 0}% - 1px)"></div></div></div>`;
+  }).join('') + `<div class="bar-key"><span><i class="mk"></i>budget</span><span><i class="sw" style="background:var(--coral)"></i>oltre il budget</span></div>`;
   const vista = (stato.vistaCat || 'donut');
   return card(`<div class="card-head"><div><h3>Ripartizione spese</h3><div class="card-sub">Budget ${eur0(btot)} · viaggi inclusi</div></div>
     <div class="seg" data-seg="vistaCat"><button data-v="donut" class="${vista === 'donut' ? 'on' : ''}">Ciambella</button><button data-v="barre" class="${vista === 'barre' ? 'on' : ''}">Barre</button></div></div>
@@ -229,7 +243,7 @@ function destinazioni(a, k, aperto) {
   const b = budget(k);
   const cats = COSTI.map(c => ({ c, v: a.spese[c] })).filter(x => x.v > 0.5).sort((x, y) => y.v - x.v);
   const top = cats.slice(0, 5), resto = cats.slice(5).reduce((s, x) => s + x.v, 0);
-  const dest = top.map(x => ({ l: x.c, v: x.v, c: COLORI[x.c], over: (b[x.c] || 0) > 0 && x.v > (b[x.c] || 0) + 0.5 }));
+  const dest = top.map(x => ({ l: x.c, v: x.v, c: COLORI[x.c], over: (b[x.c] || 0) > 0 && x.v > (b[x.c] || 0) + 0.5 ? x.v - b[x.c] : 0 }));
   if (resto > 0.5) dest.push({ l: 'Altre spese', v: resto, c: COLORI['Altre spese'] });
   if (a.pac > 0.5) dest.push({ l: 'PAC', v: a.pac, c: COLORI.PAC });
   if (a.invExtra > 0.5) dest.push({ l: 'Investimenti extra', v: a.invExtra, c: COLORI['Investimenti extra'] });
@@ -251,7 +265,7 @@ function cardFlusso(a, info, id, titoloPeriodo) {
   const w = larghezza(`[data-w="${id}"]`) - 28;
   return acc(id, 'Dove vanno i soldi', chip,
     `<div class="panel" data-w="${id}">${sankey(w, lbl, entrate, dest)}</div>
-     <div class="note">${atteso ? 'Lo stipendio del mese non è ancora arrivato: uso quello atteso (' + num(D.stipendio_atteso, 0) + ' €). ' : ''}Le prime 5 categorie per spesa, le altre raccolte in "Altre spese"; bordo corallo = sopra budget.</div>`, 's7');
+     <div class="note">${atteso ? 'Lo stipendio del mese non è ancora arrivato: uso quello atteso (' + num(D.stipendio_atteso, 0) + ' €). ' : ''}Le prime 5 categorie per spesa, le altre raccolte in "Altre spese"; in corallo quanto sono sopra budget.</div>`, 's7');
 }
 
 function colore(v, max) {
@@ -387,7 +401,8 @@ function vistaConfronto() {
 }
 
 function vistaAnno() {
-  const y = ymd(OGGI)[0], mesi = Array.from({ length: 12 }, (_, i) => mk(y, i + 1));
+  const anni = [...new Set(D.tx.map(t => +t[1].slice(0, 4)))].sort((a, b) => b - a);
+  const y = anni.includes(+stato.anno) ? +stato.anno : ymd(OGGI)[0], mesi = Array.from({ length: 12 }, (_, i) => mk(y, i + 1));
   const kd = meseDi(D.data_al);
   const att = mesi.filter(m => m <= kd && D.tx.some(t => t[1] === m));
   if (!att.length) return headPagina('Anno', String(y), chipDati()) + card(`<div class="empty-card"><h3>Nessun dato per il ${y}</h3><p class="muted">Compariranno al primo aggiornamento dell'anno.</p></div>`);
@@ -409,7 +424,7 @@ function vistaAnno() {
   let ent = entrate;
   const dest = COSTI.map(c => ({ c, v: tot.spese[c] })).filter(x => x.v > 0.5).sort((a, b) => b.v - a.v);
   const bAnno = c => att.reduce((s, m) => s + (budget(m)[c] || 0), 0);
-  const ds = dest.slice(0, 5).map(x => ({ l: x.c, v: x.v, c: COLORI[x.c], over: x.v > bAnno(x.c) + 0.5 }));
+  const ds = dest.slice(0, 5).map(x => ({ l: x.c, v: x.v, c: COLORI[x.c], over: x.v > bAnno(x.c) + 0.5 ? x.v - bAnno(x.c) : 0 }));
   const resto = dest.slice(5).reduce((s, x) => s + x.v, 0);
   if (resto > 0.5) ds.push({ l: 'Altre spese', v: resto, c: COLORI['Altre spese'] });
   if (tot.pac > 0.5) ds.push({ l: 'PAC', v: tot.pac, c: COLORI.PAC });
@@ -419,7 +434,7 @@ function vistaAnno() {
   if (liq >= 0.5) { ds.push({ l: 'In liquidità', v: liq, c: COLORI['In liquidità'] }); chipF = `<span class="chip mint">${num(liq, 0)} € in liquidità</span>`; }
   else { ent = usc; lbl = 'Entrate + liquidità'; chipF = `<span class="chip coral">${num(-liq, 0)} € dalla liquidità</span>`; }
   const cardFlu = acc('aflu', 'Dove vanno i soldi', chipF, `<div class="panel" data-w="aflu">${sankey(larghezza('[data-w="aflu"]') - 28, lbl, ent, ds)}</div>
-    <div class="note">${periodo}. Bordo corallo = sopra il budget cumulato.</div>`, 's7');
+    <div class="note">${periodo}. In corallo quanto sono sopra il budget cumulato.</div>`, 's7');
   // barre mensili impilate
   const W = larghezza('[data-w="abar"]') - 28, H = 200, pT = 18, pB = 22, bw = (W / 12) * 0.62;
   const maxV = Math.max(...mesi.map(m => Math.max(ag[m] ? ag[m].costi : 0, budgetCosti(m)))) * 1.08 || 1;
@@ -491,19 +506,19 @@ function vistaAnno() {
   const cardCal = acc('acal', 'Calendario dell\'anno', `<span class="chip">${zero} giorni a zero</span>`,
     `<div class="panel"><div class="yearmap">${svg(W4, 16 + 7 * (cs + gp), s4).replace('width="100%"', `width="${W4}"`)}</div>${legendaScala(maxG)}</div>
      <div class="note">Media nei giorni con spese: ${eur(attivi ? somG / attivi : 0)}. Costi variabili per data, senza affitto, abbonamenti e viaggi.</div>`, 's12');
-  return headPagina('Anno', String(y), chipDati() + `<span class="chip">${periodo} · ${att.length} mesi</span>`) +
+  const selAnni = anni.length > 1 ? `<div class="seg" data-seg="anno" style="margin:-4px 0 14px">${anni.map(a => `<button data-v="${a}" class="${a === y ? 'on' : ''}">${a}</button>`).join('')}</div>` : '';
+  return headPagina('Anno', String(y), chipDati() + `<span class="chip">${periodo} · ${att.length} mesi</span>`) + selAnni +
     colonne([[1, kpi], [3, cardCum], [5, cardSR]], [[2, cardFlu], [4, cardBar]], `<div style="margin-top:14px">${cardCal}</div>`);
 }
 
 /* ------------------------------------------------------------------ posso comprarlo */
 function renderAsk() {
   const chips = document.getElementById('ask-chips');
-  if (!stato.askCat) stato.askCat = 'Shopping';
   chips.innerHTML = COSTI.map(c => `<button data-cat="${esc(c)}" class="${c === stato.askCat ? 'on' : ''}"><i class="dot" style="background:${COLORI[c]}"></i>${esc(c)}</button>`).join('');
   const raw = document.getElementById('ask-amount').value.replace(/\./g, '').replace(',', '.').replace(/[^\d.]/g, '');
   const imp = parseFloat(raw);
   const out = document.getElementById('ask-result');
-  if (!(imp > 0)) { out.innerHTML = '<div class="hint">Scrivi l\'importo e scegli la categoria.</div>'; return; }
+  if (!(imp > 0) || !stato.askCat) { out.innerHTML = '<div class="hint">Scegli importo e categoria.</div>'; return; }
   const k = meseDi(OGGI), info = infoMese(k), cat = stato.askCat;
   const tre = [sposta(k, -2), sposta(k, -1), k];
   const spesoM = info.importato ? agg(k, info.fino).spese[cat] : 0, budM = budget(k)[cat] || 0;
@@ -553,7 +568,7 @@ document.addEventListener('click', e => {
   const s = e.target.closest('[data-seg] button');
   if (s) { stato[s.parentElement.dataset.seg] = s.dataset.v; salvaUI(); render(); return; }
   if (e.target.closest('[data-ask]')) { document.getElementById('sheet-wrap').hidden = false; renderAsk(); setTimeout(() => document.getElementById('ask-amount').focus(), 50); return; }
-  if (e.target.closest('[data-close]')) { document.getElementById('sheet-wrap').hidden = true; return; }
+  if (e.target.closest('[data-close]')) { document.getElementById('sheet-wrap').hidden = true; document.getElementById('ask-amount').value = ''; stato.askCat = null; return; }
   const c = e.target.closest('[data-cat]');
   if (c) { stato.askCat = c.dataset.cat; renderAsk(); }
 });
@@ -580,19 +595,33 @@ function avvia(dati) {
   document.getElementById('app').hidden = false;
   render();
 }
+// archivi degli anni chiusi (anno-AAAA.enc.json): stessa password, uniti ai dati dell'anno in corso
+async function caricaTutto(env, pw) {
+  const d = await decifra(env, pw);
+  for (const f of (d.archivi || [])) {
+    try {
+      const a = await decifra(await (await fetch(f, { cache: 'no-store' })).json(), pw);
+      d.tx = a.tx.concat(d.tx);
+      d.budget = Object.assign({}, a.budget, d.budget);
+      a.categorie.forEach(c => { if (!d.categorie.some(x => x.nome === c.nome)) d.categorie.push(c); });
+    } catch (e) { console.warn('archivio non caricato', f); }
+  }
+  d.tx.sort((x, y) => x[0] < y[0] ? -1 : x[0] > y[0] ? 1 : 0);
+  return d;
+}
 async function init() {
   let env;
   try { env = await (await fetch('data.enc.json', { cache: 'no-store' })).json(); }
   catch (e) { document.body.innerHTML = '<p style="padding:24px">Dati non disponibili.</p>'; return; }
   let pw = null; try { pw = localStorage.getItem('camcash.pw'); } catch (e) { }
-  if (pw) { try { return avvia(await decifra(env, pw)); } catch (e) { try { localStorage.removeItem('camcash.pw'); } catch (_) { } } }
+  if (pw) { try { return avvia(await caricaTutto(env, pw)); } catch (e) { try { localStorage.removeItem('camcash.pw'); } catch (_) { } } }
   document.getElementById('login').hidden = false;
   document.getElementById('login-form').addEventListener('submit', async ev => {
     ev.preventDefault();
     const p = document.getElementById('pw').value, err = document.getElementById('login-err');
     err.hidden = true;
     try {
-      const d = await decifra(env, p);
+      const d = await caricaTutto(env, p);
       if (document.getElementById('remember').checked) { try { localStorage.setItem('camcash.pw', p); } catch (e) { } }
       avvia(d);
     } catch (e) { err.textContent = 'Password errata.'; err.hidden = false; }
