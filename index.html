@@ -1,0 +1,85 @@
+<!doctype html>
+<html lang="it">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<meta name="robots" content="noindex, nofollow">
+<meta name="theme-color" content="#FAF7EE">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="default">
+<meta name="apple-mobile-web-app-title" content="CAM Cash">
+<title>CAM Cash</title>
+<link rel="manifest" href="manifest.webmanifest">
+<link rel="icon" href="icon-192.png">
+<link rel="apple-touch-icon" href="apple-touch-icon.png">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="style.css">
+</head>
+<body>
+
+<!-- accesso -->
+<section id="login" class="login" hidden>
+  <form id="login-form" class="login-card" autocomplete="on">
+    <div class="wordmark big">CAM <span>Cash</span></div>
+    <p class="muted">Le tue finanze, in privato.</p>
+    <input type="text" name="username" autocomplete="username" value="CAM Cash" class="visually-hidden" tabindex="-1" aria-hidden="true">
+    <label class="field">
+      <span>Password</span>
+      <input id="pw" type="password" name="password" autocomplete="current-password" required>
+    </label>
+    <label class="check"><input id="remember" type="checkbox" checked> Ricorda su questo dispositivo</label>
+    <button class="btn-dark" type="submit">Entra</button>
+    <p id="login-err" class="err" hidden></p>
+  </form>
+</section>
+
+<!-- app -->
+<div id="app" hidden>
+  <aside class="sidebar">
+    <div class="wordmark">CAM <span>Cash</span></div>
+    <nav id="side-nav"></nav>
+    <div class="side-foot">
+      <div class="side-data" id="side-data"></div>
+      <button class="link-btn" id="logout">Esci</button>
+    </div>
+  </aside>
+
+  <main>
+    <header class="top">
+      <div class="wordmark mobile-only">CAM <span>Cash</span></div>
+      <button class="ask-top desktop-only" data-ask>
+        <svg viewBox="0 0 24 24" class="ico"><circle cx="10.5" cy="10.5" r="6.5"/><path d="M15.5 15.5 20 20"/></svg>
+        Posso comprarlo?
+      </button>
+    </header>
+    <div id="view"></div>
+  </main>
+
+  <nav class="tabbar mobile-only" id="tabbar"></nav>
+  <button class="ask-fab mobile-only" data-ask aria-label="Posso comprarlo?">
+    <svg viewBox="0 0 24 24" class="ico"><circle cx="10.5" cy="10.5" r="6.5"/><path d="M15.5 15.5 20 20"/></svg>
+  </button>
+</div>
+
+<!-- posso comprarlo -->
+<div id="sheet-wrap" class="sheet-wrap" hidden>
+  <div class="sheet-backdrop" data-close></div>
+  <section class="sheet" role="dialog" aria-label="Posso comprarlo?">
+    <div class="grab"></div>
+    <h2>Posso comprarlo?</h2>
+    <div class="ask-input">
+      <input id="ask-amount" type="text" inputmode="decimal" placeholder="0,00" autocomplete="off">
+      <span>€</span>
+    </div>
+    <div class="chips" id="ask-chips"></div>
+    <div id="ask-result"></div>
+    <button class="link-btn close" data-close>Chiudi</button>
+  </section>
+</div>
+
+<script src="app.js"></script>
+</body>
+</html>
