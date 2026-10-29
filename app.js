@@ -396,7 +396,7 @@ function vistaMese(k, chiusoForzato) {
     const q = spesoNoWT / (bud || 1);
     hero = card(`<div class="card-head"><span class="label">Risultato del mese</span><span class="head-r"><span class="chip ${av.utile >= 0 ? 'mint' : 'coral'}">${av.utile >= 0 ? 'Risparmio' : 'In perdita'}</span>${segExtra(!ext)}</span></div>
       <div class="big ${av.utile < 0 ? 'neg' : ''}">${av.utile > 0 ? '+' : ''}${ii}<span class="dec">,${dd} €</span></div>
-      <div class="line">${ext && !conExtra() ? 'senza extra · ' : ''}savings rate ${av.entrate > 0 ? pct(av.utile / av.entrate) : '–'} · budget usato ${pct(q)}</div>
+      <div class="line">savings rate ${av.entrate > 0 ? pct(av.utile / av.entrate) : '–'} · budget usato ${pct(q)}</div>
       ${soldiMese(av, info)}
       <div class="note">Viaggi esclusi dal budget (Fondo viaggi); l'utile li comprende.</div>`, 'hero s5');
   }

@@ -95,8 +95,11 @@ details.card .body>.panel:first-child{margin-top:0}
 .sbar{display:flex;gap:3px;height:14px;margin-top:14px;border-radius:99px}
 .sbar i{display:block;height:100%;border-radius:99px;min-width:6px}
 .sbar.dashed{height:20px;padding:2px;border:1.5px dashed #D9D4CB}
-.sleg{display:flex;flex-wrap:wrap;gap:4px 16px;margin-top:8px;font-size:12.5px;color:var(--ink-2)}
-.sleg span{display:flex;align-items:center;gap:5px;white-space:nowrap}
+.sleg{display:flex;justify-content:space-between;gap:6px;margin-top:10px;font-size:12px;color:var(--ink-2)}
+.sleg span{display:grid;grid-template-columns:auto auto;align-items:center;column-gap:6px;row-gap:1px;white-space:nowrap;justify-content:start}
+.sleg span b{grid-column:2;font-size:13.5px}
+.sleg span.neg{grid-template-columns:auto}
+.sleg span.neg b{grid-column:1}
 .sleg b{font-weight:700;color:var(--ink)} .sleg .neg,.sleg .neg b{color:var(--coral-ink)}
 
 /* legende con simboli */
@@ -305,8 +308,8 @@ svg .lbl-b{font-size:11.5px;fill:var(--ink);font-weight:700}
 .seg-row{display:flex;justify-content:flex-end;margin:0 0 10px}
 .kpi-top .row1{display:flex;align-items:center;justify-content:space-between;gap:10px}
 .kpi-top .row1 .seg.ico2 button{width:38px;height:28px}
-.kpi-top .row2{display:flex;align-items:center;justify-content:space-between;gap:10px;margin-top:4px}
-.kpi-top .row2 .v{margin-top:0}
+.kpi-top .row2{display:flex;align-items:flex-end;justify-content:space-between;gap:10px;margin-top:2px}
+.kpi-top .row2 .v{margin-top:0;line-height:1.05}
 .kpi-top .mini{display:flex;flex-direction:column;align-items:flex-end;gap:5px;flex:none}
 .kpi-top .mini .chip b{font-weight:800}
 .head-r{display:flex;align-items:center;gap:8px}
