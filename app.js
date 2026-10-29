@@ -213,9 +213,8 @@ function cardCategorie(a, k, id) {
   const centro = { label: 'SPESO', big: `${num(tot, 0)}\u00A0€`, sub: btot ? pct(tot / btot) + ' del budget' : '' };
   const lista = righe.slice().sort((x, y) => y.v - x.v).map(r => {
     const d = r.v - r.b, over = r.b > 0 ? d > 0.5 : r.v > 0.5;
-    return `<div class="cat-row"><i class="dot" style="background:${COLORI[r.c]}"></i>
-      <div class="name">${esc(r.c)} ${over ? `<span class="chip coral">+${num(d, 0)} €</span>` : ''}</div>
-      <div class="amt">${eur(r.v)}<small>su ${eur0(r.b)}</small></div></div>`;
+    return `<div class="cg"><div class="l1"><i class="dot" style="background:${COLORI[r.c]}"></i><span class="n">${esc(r.c)}</span><span class="a">${eur0(r.v)}</span></div>
+      <div class="l2">${over ? `<span class="chip coral sm">+${num(d, 0)} €</span>` : '<span></span>'}<small>su ${eur0(r.b)}</small></div></div>`;
   }).join('');
   const BM = 70; // posizione della tacca del budget (% della larghezza), uguale per tutte
   const barre = righe.slice().sort((x, y) => y.v - x.v).map(r => {
@@ -232,7 +231,7 @@ function cardCategorie(a, k, id) {
   return card(`<div class="card-head"><div><h3>Ripartizione spese</h3><div class="card-sub nowrap">Budget ${eur0(btot)}</div></div>
     <div class="seg" data-seg="vistaCat"><button data-v="donut" class="${vista === 'donut' ? 'on' : ''}">Ciambella</button><button data-v="barre" class="${vista === 'barre' ? 'on' : ''}">Barre</button></div></div>
     <div class="seg sm2" data-seg="viaggi" style="margin-top:12px"><button data-v="senza" class="${conV ? '' : 'on'}">Senza viaggi</button><button data-v="con" class="${conV ? 'on' : ''}">Con viaggi</button></div>
-    ${vista === 'donut' ? `<div class="donut-wrap">${donut(items, centro)}</div><div class="cat-list">${lista}</div>` : `<div class="bars-list">${barre}</div>`}`, 's7');
+    ${vista === 'donut' ? `<div class="donut-wrap">${donut(items, centro)}</div><div class="cat-grid">${lista}</div>` : `<div class="bars-list">${barre}</div>`}`, 's7');
 }
 
 function datiRitmo(a, info) {
