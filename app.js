@@ -620,6 +620,7 @@ function render() {
   }
   v.querySelectorAll('[data-mchips]').forEach(r => { const on = r.querySelector('.on'); if (on) r.scrollLeft = on.offsetLeft - r.clientWidth / 2 + on.clientWidth / 2; });
   v.querySelectorAll('details.card').forEach(d => d.addEventListener('toggle', () => { stato.aperti = stato.aperti || {}; stato.aperti[d.dataset.id] = d.open; salvaUI(); }));
+  v.querySelectorAll('details[data-sub]').forEach(d => d.addEventListener('toggle', ev => { ev.stopPropagation(); stato.aperti = stato.aperti || {}; stato.aperti[d.dataset.sub] = d.open; salvaUI(); }));
 }
 
 document.addEventListener('click', e => {

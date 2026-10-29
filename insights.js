@@ -16,8 +16,10 @@ const TIPI = {
   abit: ['Abitudine', 'c-lav', '◐'], tantum: ['Una tantum', 'c-lav', '✦'], record: ['Record', 'c-mint', '★'], coppa: ['Record', 'c-yel', COPPA], over: ['Sopra budget', 'c-coral', '!'],
 };
 const b = s => `<b>${esc(s)}</b>`;
-const e0 = v => `${num(v, 0)} €`;
-const gg = n => `${n} ${n === 1 ? 'giorno' : 'giorni'}`;
+const e0 = v => `${num(v, 0)}\u00a0€`;
+const gg = n => `${n}\u00a0${n === 1 ? 'giorno' : 'giorni'}`;
+const MONTHS = ['January', 'February', 'March', 'April', 'May', 'June', 'July', 'August', 'September', 'October', 'November', 'December'];
+const mEn = k => MONTHS[ymd(k)[1] - 1];
 
 // mesi chiusi (completi) prima di k
 function mesiChiusiPrima(k, quanti) {
@@ -166,17 +168,22 @@ function regoleInizio(k) {
 
 function insights(k) {
   const info = infoMese(k), inizio = !info.importato || info.fino < 7;
-  let gruppi;
-  if (inizio) gruppi = [[`${meseTit(sposta(k, -1)).split(' ')[0]} in tre righe`, regoleMesePrima(k)],
-                        [`${meseTit(k).split(' ')[0]}, si parte`, regoleInizio(k).concat(info.importato ? regoleMese(k, info) : [])],
-                        ['Dallo storico', regoleStoria(k)]];
-  else gruppi = [['Da fare adesso', regoleMese(k, info).filter(r => ['stop', 'slow'].includes(r.t))],
-                 ['Come sta andando', regoleMese(k, info).filter(r => !['stop', 'slow'].includes(r.t)).concat(regoleStoria(k))]];
-  const coppe = gruppi.flatMap(g => g[1].filter(r => r.t === 'coppa'));
-  gruppi.forEach(g => { g[1] = g[1].filter(r => r.t !== 'coppa'); g[1].sort((x, y) => y.p - x.p); });
-  const tutte = gruppi.flatMap(g => g[1]);   // senza i record (coppe), che vanno in testa a "Vedi tutte"
-  const urg = inizio ? 0 : tutte.filter(r => ['stop', 'slow'].includes(r.t)).length;
-  return { gruppi, tutte, urg, inizio, coppe };
+  const ord = r => r.sort((x, y) => y.p - x.p);
+  let vista, how;
+  if (inizio) {
+    const prima = regoleMesePrima(k), ora = info.importato ? regoleMese(k, info) : [];
+    vista = [[`${mEn(sposta(k, -1))} recap`, ord(prima.filter(r => r.t !== 'coppa'))],
+             [`${mEn(k)} kick-off`, ord(regoleInizio(k).concat(ora.filter(r => ['stop', 'slow'].includes(r.t))))]];
+    how = prima.concat(ora, regoleStoria(k)).filter(r => !(['stop', 'slow'].includes(r.t)) && !prima.filter(x => x.t !== 'coppa').includes(r));
+  } else {
+    const mese = regoleMese(k, info);
+    vista = [['To action', ord(mese.filter(r => ['stop', 'slow'].includes(r.t)))]];
+    how = mese.filter(r => !['stop', 'slow'].includes(r.t)).concat(regoleStoria(k));
+  }
+  const coppe = how.filter(r => r.t === 'coppa');
+  how = ord(how.filter(r => r.t !== 'coppa'));
+  const urg = inizio ? 0 : vista[0][1].length;
+  return { vista, how, coppe, urg, inizio };
 }
 
 function rigaCoppe(cs) {
@@ -193,27 +200,21 @@ function riga(r) {
   return `<div class="ins"><div class="ic ${cls}">${ic}</div><div class="tx"><span class="tag ${cls}">${lab}</span>${r.x}</div></div>`;
 }
 
+function sezioneHow(coppe, how, id) {
+  const n = coppe.length + how.length;
+  if (!n) return '';
+  const open = (stato.aperti || {})[id] ? 'open' : '';
+  return `<details class="ins-how" data-sub="${id}" ${open}><summary><span>How's it going</span><span class="n">${n}</span>${CHEV}</summary>${rigaCoppe(coppe)}${how.map(riga).join('')}</details>`;
+}
 function cardInsights(k) {
-  const { gruppi, tutte, urg, inizio, coppe } = insights(k);
+  const { vista, how, coppe, urg, inizio } = insights(k);
   const nota = D.nota && D.nota.testo && D.nota.testo.length ? D.nota : null;
   const dNota = nota ? nota.data.split('-').reverse().slice(0, 2).join('/') : '';
   const sub = [urg ? `${urg} da sistemare` : (inizio ? `${meseNome(sposta(k, -1))} chiuso` : 'tutto in linea'), nota ? `brief del ${dNota}` : ''].filter(Boolean).join(' · ');
-  const MAX = 3;
-  let mostrate = 0, corpo = '', resto = '';
-  for (const [tit, righe] of gruppi) {
-    if (!righe.length) continue;
-    const vis = righe.slice(0, Math.max(0, MAX - mostrate)), nas = righe.slice(vis.length);
-    if (vis.length) corpo += `<div class="ins-sep">${tit}</div>` + vis.map(riga).join('');
-    if (nas.length) resto += (vis.length ? '' : `<div class="ins-sep">${tit}</div>`) + nas.map(riga).join('');
-    mostrate += vis.length;
-  }
-  if (coppe.length) resto = rigaCoppe(coppe) + resto;
-  const altre = tutte.length + coppe.length - mostrate, totale = tutte.length + coppe.length;
-  const notaHtml = nota ? briefHtml(nota.testo, nota.data) : '';
+  const corpo = vista.filter(([, r]) => r.length).map(([tit, r]) => `<div class="ins-sep">${tit}</div>` + r.map(riga).join('')).join('');
   const open = (stato.aperti || {}).ins ? 'open' : '';
   return `<details class="card insights" data-id="ins" ${open}><summary>${PIGGY}<div class="t"><h3>Insights</h3><div class="sub">${sub}</div></div>${CHEV}</summary>
-    <div class="body">${notaHtml}${corpo || '<p class="muted">Ancora niente da segnalare: torna fra qualche giorno.</p>'}
-    ${altre > 0 ? `<details class="ins-altre"><summary>Vedi tutte (${totale})</summary>${resto}</details>` : ''}</div></details>`;
+    <div class="body">${nota ? briefHtml(nota.testo, nota.data) : ''}${corpo || (inizio ? '' : '<div class="ins-sep">To action</div><p class="ins-vuoto">Niente da sistemare: sei in linea con il budget.</p>')}${sezioneHow(coppe, how, 'insHow')}</div></details>`;
 }
 
 // ---- scheda Insights dell'anno
@@ -235,9 +236,7 @@ function cardInsightsAnno(y) {
   regoleStoria(sposta(mesi[mesi.length - 1], 1)).filter(r => ['abit', 'budget'].includes(r.t)).forEach(r => out.push(r));
   out.sort((a, b) => b.p - a.p);
   const coppe = out.filter(r => r.t === 'coppa'), altre = out.filter(r => r.t !== 'coppa');
-  const vis = altre.slice(0, 3), nas = altre.slice(3);
   const open = (stato.aperti || {}).insA ? 'open' : '';
   return `<details class="card insights" data-id="insA" ${open}><summary>${PIGGY}<div class="t"><h3>Insights</h3><div class="sub">il ${y} finora${D.nota && D.nota.anno ? ` · brief del ${D.nota.data.split('-').reverse().slice(0, 2).join('/')}` : ''}</div></div>${CHEV}</summary>
-    <div class="body">${D.nota && D.nota.anno ? briefHtml(D.nota.anno, D.nota.data) : ''}<div class="ins-sep">L'anno in pillole</div>${vis.map(riga).join('')}
-    ${coppe.length + nas.length ? `<details class="ins-altre"><summary>Vedi tutte (${out.length})</summary>${rigaCoppe(coppe)}${nas.map(riga).join('')}</details>` : ''}</div></details>`;
+    <div class="body">${D.nota && D.nota.anno ? briefHtml(D.nota.anno, D.nota.data) : ''}${sezioneHow(coppe, altre, 'insHowA')}</div></details>`;
 }
