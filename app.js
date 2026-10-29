@@ -23,7 +23,7 @@ const ICONE = {
     Array.from({ length: 12 }, (_, i) => { const a = i / 12 * 2 * Math.PI - Math.PI / 2; return `<circle cx="${(12 + 8.5 * Math.cos(a)).toFixed(2)}" cy="${(12 + 8.5 * Math.sin(a)).toFixed(2)}" r="${i === 0 ? 2.1 : 1.45}"/>`; }).join('') + '</svg>'
 };
 const CHEV = '<svg viewBox="0 0 24 24" class="chev ico"><path d="m6 9 6 6 6-6"/></svg>';
-const TABS = [['mese', 'Mese'], ['prec', 'Mese prec.'], ['conf', 'Confronto'], ['anno', 'Anno']];
+const TABS = [['mese', 'Mese'], ['prec', 'Mesi'], ['conf', 'Confronto'], ['anno', 'Anno']];
 
 /* ------------------------------------------------------------------ formato */
 function num(v, dec = 2) {
@@ -54,7 +54,7 @@ let OGGI = null;             // 'YYYY-MM-DD'
 let COSTI = [], VARIAB = [];
 let stato = { tab: 'mese', confRif: 'prec', askCat: null };
 try { stato = Object.assign(stato, JSON.parse(localStorage.getItem('camcash.ui') || '{}')); } catch (e) { }
-function salvaUI() { try { localStorage.setItem('camcash.ui', JSON.stringify({ tab: stato.tab, confRif: stato.confRif, vistaCat: stato.vistaCat, aperti: stato.aperti || {} })); } catch (e) { } }
+function salvaUI() { try { localStorage.setItem('camcash.ui', JSON.stringify({ tab: stato.tab, confRif: stato.confRif, vistaCat: stato.vistaCat, viaggi: stato.viaggi, aperti: stato.aperti || {} })); } catch (e) { } }
 
 /* ------------------------------------------------------------------ calcoli */
 // aggregato di un mese di competenza fino al giorno `fino` (incluso)
@@ -121,8 +121,10 @@ function donut(items, centro, size = 230) {
     segs += `<path d="${path}" fill="${it.c}" stroke="${it.c}" stroke-width="${2 * cr}" stroke-linejoin="round" stroke-linecap="round"/>`;
     a += span;
   }
-  return svg(size, size, segs + `<foreignObject x="${th + 14}" y="${c - 42}" width="${size - 2 * th - 28}" height="84">
-    <div xmlns="http://www.w3.org/1999/xhtml" style="text-align:center;line-height:1.15">${centro}</div></foreignObject>`, 'donut').replace('width="100%"', `width="${size}"`);
+  const testo = `<text x="${c}" y="${c - 24}" text-anchor="middle" style="font-size:11px;font-weight:600;fill:#8B867D;letter-spacing:.06em">${esc(centro.label)}</text>
+    <text x="${c}" y="${c}" text-anchor="middle" dominant-baseline="central" style="font-size:26px;font-weight:800;fill:#1C1B1B;letter-spacing:-.03em">${esc(centro.big)}</text>
+    <text x="${c}" y="${c + 30}" text-anchor="middle" style="font-size:12px;font-weight:400;fill:#55524C">${esc(centro.sub)}</text>`;
+  return svg(size, size, segs + testo, 'donut').replace('width="100%"', `width="${size}"`);
 }
 
 /* sankey verticale: una barra di entrate in alto che si apre verso le destinazioni */
@@ -201,15 +203,14 @@ function sintesiCategorie(a, k) {
 }
 
 function cardCategorie(a, k, id) {
-  const righe = sintesiCategorie(a, k);
+  const conV = stato.viaggi === 'con';
+  const righe = sintesiCategorie(a, k).filter(r => conV || r.c !== WT);
   const tot = righe.reduce((s, r) => s + Math.max(r.v, 0), 0), btot = righe.reduce((s, r) => s + r.b, 0);
   // donut: categorie sotto il 3% raccolte in "Altre spese"
   const items = [], piccole = { c: 'Altre spese', v: 0 };
   righe.filter(r => r.v > 0).sort((x, y) => y.v - x.v).forEach(r => (r.v / tot < 0.03 ? piccole.v += r.v : items.push({ c: COLORI[r.c], v: r.v })));
   if (piccole.v > 0) items.push({ c: COLORI['Altre spese'], v: piccole.v });
-  const centro = `<div style="font-size:11px;font-weight:700;color:#8B867D;letter-spacing:.06em">SPESO</div>
-    <div style="font-size:24px;font-weight:800;letter-spacing:-.03em;white-space:nowrap">${num(tot, 0)} €</div>
-    <div style="font-size:12px;color:#55524C">${btot ? pct(tot / btot) + ' del budget' : ''}</div>`;
+  const centro = { label: 'SPESO', big: `${num(tot, 0)}\u00A0€`, sub: btot ? pct(tot / btot) + ' del budget' : '' };
   const lista = righe.slice().sort((x, y) => y.v - x.v).map(r => {
     const d = r.v - r.b, over = r.b > 0 ? d > 0.5 : r.v > 0.5;
     return `<div class="cat-row"><i class="dot" style="background:${COLORI[r.c]}"></i>
@@ -222,15 +223,15 @@ function cardCategorie(a, k, id) {
     let dentro, fuori;
     if (r.b > 0) { dentro = Math.min(v, r.b) / r.b * BM; fuori = over > 0 ? Math.min(over / r.b * BM, 100 - BM) : 0; }
     else { dentro = 0; fuori = v > 0 ? Math.min(v / 100 * BM, 100) : 0; }
-    const pieno = over > 0 && (r.b > 0 ? over / r.b * BM > 100 - BM : true);
     return `<div class="bar-row"><div class="top"><span>${esc(r.c)}</span><span class="v">${over > 0.5 ? `<span class="chip coral sm">+${num(over, 0)} €</span> ` : ''}${eur0(r.v)} <small>/ ${eur0(r.b)}</small></span></div>
       <div class="bar-track">${dentro ? `<div class="fill" style="width:${dentro}%;background:${COLORI[r.c]}"></div>` : ''}
-      ${fuori ? `<div class="fill over ${pieno ? 'cut' : ''}" style="left:${r.b > 0 ? BM : 0}%;width:${fuori}%"></div>` : ''}
+      ${fuori ? `<div class="fill over" style="left:${r.b > 0 ? BM : 0}%;width:${fuori}%"></div>` : ''}
       <div class="mark" style="left:calc(${r.b > 0 ? BM : 0}% - 1px)"></div></div></div>`;
   }).join('') + `<div class="bar-key"><span><i class="mk"></i>budget</span><span><i class="sw" style="background:var(--coral)"></i>oltre il budget</span></div>`;
   const vista = (stato.vistaCat || 'donut');
-  return card(`<div class="card-head"><div><h3>Ripartizione spese</h3><div class="card-sub">Budget ${eur0(btot)} · viaggi inclusi</div></div>
+  return card(`<div class="card-head"><div><h3>Ripartizione spese</h3><div class="card-sub">Budget ${eur0(btot)} · ${conV ? 'con' : 'senza'} viaggi</div></div>
     <div class="seg" data-seg="vistaCat"><button data-v="donut" class="${vista === 'donut' ? 'on' : ''}">Ciambella</button><button data-v="barre" class="${vista === 'barre' ? 'on' : ''}">Barre</button></div></div>
+    <div class="seg sm2" data-seg="viaggi" style="margin-top:12px"><button data-v="senza" class="${conV ? '' : 'on'}">Senza viaggi</button><button data-v="con" class="${conV ? 'on' : ''}">Con viaggi</button></div>
     ${vista === 'donut' ? `<div class="donut-wrap">${donut(items, centro)}</div><div class="cat-list">${lista}</div>` : `<div class="bars-list">${barre}</div>`}`, 's7');
 }
 
@@ -347,12 +348,23 @@ function soldiMese(a, info) {
       ${resto >= 0 ? `<span><i class="dot" style="background:#E2DCD0"></i>${info.corrente ? 'Restano' : 'In liquidità'} <b>${eur0(resto)}</b></span>` : `<span class="neg">Dalla liquidità <b>${eur0(-resto)}</b></span>`}</div>`;
 }
 
+// mesi con spese registrate (fino all'ultimo mese con dati)
+function mesiConDati() {
+  const kd = meseDi(D.data_al);
+  return [...new Set(D.tx.filter(t => COSTI.includes(t[2])).map(t => t[1]))].filter(m => m <= kd).sort();
+}
+function sceltaMesi(chiave, mesi, sel) {
+  const anni = new Set(mesi.map(m => m.slice(0, 4))).size > 1;
+  return `<div class="mchips" data-mchips>${mesi.map(m => `<button data-msel="${chiave}" data-v="${m}" class="${m === sel ? 'on' : ''}">${MESI_B[ymd(m)[1] - 1]}${anni ? ' ' + m.slice(2, 4) : ''}</button>`).join('')}</div>`;
+}
+
 function vistaMese(k, chiusoForzato) {
   const info = infoMese(k);
   const prec = chiusoForzato;
-  const eyebrow = prec ? 'Mese precedente' : 'Mese in corso';
+  const eyebrow = prec ? 'Mesi' : 'Mese in corso';
+  const scelta = prec ? sceltaMesi('meseSel', mesiConDati().filter(m => m !== meseDi(OGGI)), k) : '';
   if (!info.importato) {
-    return headPagina(eyebrow, meseTit(k), chipDati()) + card(`<div class="empty-card"><h3>${meseTit(k)} non ancora importato</h3>
+    return headPagina(eyebrow, meseTit(k), chipDati()) + scelta + card(`<div class="empty-card"><h3>${meseTit(k)} non ancora importato</h3>
       <p class="muted">I dati arrivano al ${D.data_al.split('-').reverse().join('/')}. Il mese comparirà al prossimo aggiornamento del file.</p></div>`);
   }
   const a = agg(k, info.fino);
@@ -379,17 +391,21 @@ function vistaMese(k, chiusoForzato) {
       <div class="note">Viaggi esclusi dal budget (Fondo viaggi); l'utile li comprende.</div>`, 'hero s5');
   }
   const p = prec ? 'p' : 'm';
-  return headPagina(eyebrow, meseTit(k), chipDati() + (info.corrente ? '' : '<span class="chip">mese chiuso</span>')) +
+  return headPagina(eyebrow, meseTit(k), chipDati() + (info.corrente ? '' : '<span class="chip">mese chiuso</span>')) + scelta +
     colonne([[1, hero], [3, cardRitmo(a, info, p + 'rit')], [5, cardCalendario(info, p + 'cal')]],
             [[2, cardCategorie(a, k, p + 'cat')], [4, cardFlusso(a, info, p + 'flu')], [6, cardSettimana(info, p + 'set')]]);
 }
 
 function vistaConfronto() {
-  const k = meseDi(OGGI), info = infoMese(k);
+  const disp = mesiConDati(), oggiM = meseDi(OGGI);
+  const k = disp.includes(stato.confMese) ? stato.confMese : (disp.includes(oggiM) || !disp.length ? oggiM : disp[disp.length - 1]), info = infoMese(k);
+  const scelta = sceltaMesi('confMese', disp.includes(oggiM) ? disp : disp.concat([oggiM]), k);
   const seg = `<div class="seg wide" data-seg="confRif"><button data-v="prec" class="${stato.confRif === 'prec' ? 'on' : ''}">vs mese precedente</button><button data-v="media" class="${stato.confRif === 'media' ? 'on' : ''}">vs media 3 mesi</button></div>`;
-  if (!info.importato) return headPagina('Confronto', meseTit(k), chipDati()) + seg + '<div style="height:14px"></div>' + card(`<div class="empty-card"><h3>${meseTit(k)} non ancora importato</h3><p class="muted">Il confronto riparte al prossimo aggiornamento.</p></div>`);
+  if (!info.importato) return headPagina('Confronto', meseTit(k), chipDati()) + scelta + seg + '<div style="height:14px"></div>' + card(`<div class="empty-card"><h3>${meseTit(k)} non ancora importato</h3><p class="muted">Il confronto riparte al prossimo aggiornamento.</p></div>`);
   const g = info.fino, cur = agg(k, g);
   const rifMesi = stato.confRif === 'prec' ? [sposta(k, -1)] : [sposta(k, -1), sposta(k, -2), sposta(k, -3)];
+  const mancano = rifMesi.filter(m => !disp.includes(m));
+  if (mancano.length) return headPagina('Confronto', meseTit(k), chipDati()) + scelta + seg + '<div style="height:14px"></div>' + card(`<div class="empty-card"><h3>Non ci sono abbastanza dati</h3><p class="muted">Per questo confronto servono anche ${mancano.map(meseTit).join(', ')}, che non sono nel file.</p></div>`);
   const rifAgg = rifMesi.map(m => agg(m, Math.min(g, giorniMese(m))));
   const media = f => rifAgg.reduce((s, r) => s + f(r), 0) / rifAgg.length;
   const rifNome = stato.confRif === 'prec' ? meseNome(rifMesi[0]) : `media ${MESI_B[ymd(rifMesi[2])[1] - 1].toLowerCase()}–${MESI_B[ymd(rifMesi[0])[1] - 1].toLowerCase()}`;
@@ -399,7 +415,7 @@ function vistaConfronto() {
       <div class="kpi"><div class="v">${eur(totC)}</div></div></div>
       <span class="chip ${dT > 0 ? 'coral' : 'mint'}">${dT > 0 ? '▲' : '▼'} ${sgn(dT)}${totR ? ' (' + (dT > 0 ? '+' : '') + num(dT / totR * 100, 1) + '%)' : ''}</span></div>
     <div class="vs"><div><div class="k">${meseTit(k)}</div><div class="v">${eur0(totC)}</div></div><div><div class="k">${rifNome[0].toUpperCase() + rifNome.slice(1)}</div><div class="v">${eur0(totR)}</div></div></div>
-    <div class="note">Confronto a parità di giorni (1–${g}), viaggi inclusi.</div>`, 's5');
+    <div class="note">${g < info.n ? `Confronto a parità di giorni (1–${g})` : 'Confronto tra mesi interi'}, viaggi inclusi.</div>`, 's5');
   const righe = COSTI.map(c => ({ c, a: cur.spese[c], r: media(x => x.spese[c]) })).filter(x => Math.abs(x.a) > 0.5 || Math.abs(x.r) > 0.5);
   righe.forEach(x => x.d = x.a - x.r);
   const maxD = Math.max(...righe.map(x => Math.abs(x.d)), 1);
@@ -424,7 +440,7 @@ function vistaConfronto() {
       <div class="tr"><i style="width:${Math.max(x.a, 0) / maxP * 100}%;background:${COLORI[x.c]}"></i></div><div class="tr"><i style="width:${Math.max(x.r, 0) / maxP * 100}%;background:#D9D4CB"></i></div></div>`).join('');
   const cardPair = acc('cpair', 'Categorie a confronto', `<span class="chip">${righe.length} categorie</span>`,
     `<div class="panel"><div class="bars-list" style="margin-top:0">${pair}</div></div>${chiave([['bar', '#B8C0EC', meseTit(k)], ['bar', '#D9D4CB', rifNome[0].toUpperCase() + rifNome.slice(1)]])}`, 's7');
-  return headPagina('Confronto', meseTit(k), chipDati() + `<span class="chip">${parita}</span>`) + seg + '<div style="height:14px"></div>' +
+  return headPagina('Confronto', meseTit(k), chipDati() + `<span class="chip">${parita}</span>`) + scelta + seg + '<div style="height:14px"></div>' +
     colonne([[1, kpi], [3, cardRit]], [[2, cardDiv], [4, cardPair]]);
 }
 
@@ -584,15 +600,18 @@ function render() {
   const k = meseDi(OGGI);
   // primo passaggio per misurare le larghezze, secondo con le misure giuste
   for (let i = 0; i < 2; i++) {
-    v.innerHTML = stato.tab === 'mese' ? vistaMese(k, false) : stato.tab === 'prec' ? vistaMese(sposta(k, -1), true) : stato.tab === 'conf' ? vistaConfronto() : vistaAnno();
+    v.innerHTML = stato.tab === 'mese' ? vistaMese(k, false) : stato.tab === 'prec' ? vistaMese(mesiConDati().includes(stato.meseSel) && stato.meseSel !== k ? stato.meseSel : sposta(k, -1), true) : stato.tab === 'conf' ? vistaConfronto() : vistaAnno();
     if (i === 0) v.querySelectorAll('details.card').forEach(d => d.open = true);
   }
+  v.querySelectorAll('[data-mchips]').forEach(r => { const on = r.querySelector('.on'); if (on) r.scrollLeft = on.offsetLeft - r.clientWidth / 2 + on.clientWidth / 2; });
   v.querySelectorAll('details.card').forEach(d => d.addEventListener('toggle', () => { stato.aperti = stato.aperti || {}; stato.aperti[d.dataset.id] = d.open; salvaUI(); }));
 }
 
 document.addEventListener('click', e => {
   const t = e.target.closest('[data-tab]');
   if (t) { stato.tab = t.dataset.tab; salvaUI(); render(); window.scrollTo({ top: 0 }); return; }
+  const ms = e.target.closest('[data-msel]');
+  if (ms) { stato[ms.dataset.msel] = ms.dataset.v; salvaUI(); render(); return; }
   const s = e.target.closest('[data-seg] button');
   if (s) { stato[s.parentElement.dataset.seg] = s.dataset.v; salvaUI(); render(); return; }
   if (e.target.closest('[data-ask]')) { document.getElementById('sheet-wrap').hidden = false; renderAsk(); setTimeout(() => document.getElementById('ask-amount').focus(), 50); return; }

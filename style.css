@@ -104,6 +104,14 @@ details.card .body>.panel:first-child{margin-top:0}
 .key span{display:inline-flex;align-items:center;gap:6px}
 .key svg{display:block}
 
+/* scelta del mese */
+.mchips{display:flex;gap:6px;overflow-x:auto;-webkit-overflow-scrolling:touch;scrollbar-width:none;margin:-4px -16px 14px;padding:2px 16px}
+.mchips::-webkit-scrollbar{display:none}
+.mchips button{flex:none;border:0;border-radius:999px;padding:8px 14px;background:var(--card);font-size:13.5px;font-weight:500;box-shadow:var(--shadow)}
+.mchips button.on{background:var(--ink);color:#fff;font-weight:600}
+@media (min-width:1000px){.mchips{margin:-4px 0 18px;padding:2px 0;flex-wrap:wrap}}
+.seg.sm2 button{padding:5px 12px;font-size:12px}
+
 /* segmented */
 .seg{display:inline-flex;background:var(--panel);border-radius:999px;padding:3px;gap:2px}
 .seg button{border:0;background:none;padding:6px 12px;border-radius:999px;font-size:12.5px;font-weight:600;color:var(--ink-2)}
@@ -125,7 +133,6 @@ details.card .body>.panel:first-child{margin-top:0}
 .bar-track{position:relative;height:12px;border-radius:99px;background:var(--panel);margin-top:6px}
 .bar-track .fill{position:absolute;left:0;top:0;bottom:0;border-radius:99px}
 .bar-track .fill.over{background:var(--coral);border-radius:0 99px 99px 0}
-.bar-track .fill.over.cut{background:repeating-linear-gradient(90deg,var(--coral) 0 calc(100% - 14px),transparent calc(100% - 14px) calc(100% - 11px),var(--coral) calc(100% - 11px))}
 .bar-key{display:flex;gap:16px;font-size:11.5px;color:var(--muted);margin-top:2px}
 .bar-key span{display:flex;align-items:center;gap:6px}
 .bar-key .mk{width:2.5px;height:12px;background:var(--ink);border-radius:2px;display:inline-block}
