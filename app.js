@@ -229,7 +229,7 @@ function cardCategorie(a, k, id) {
       <div class="mark" style="left:calc(${r.b > 0 ? BM : 0}% - 1px)"></div></div></div>`;
   }).join('') + `<div class="bar-key"><span><i class="mk"></i>budget</span><span><i class="sw" style="background:var(--coral)"></i>oltre il budget</span></div>`;
   const vista = (stato.vistaCat || 'donut');
-  return card(`<div class="card-head"><div><h3>Ripartizione spese</h3><div class="card-sub">Budget ${eur0(btot)} · ${conV ? 'con' : 'senza'} viaggi</div></div>
+  return card(`<div class="card-head"><div><h3>Ripartizione spese</h3><div class="card-sub nowrap">Budget ${eur0(btot)}</div></div>
     <div class="seg" data-seg="vistaCat"><button data-v="donut" class="${vista === 'donut' ? 'on' : ''}">Ciambella</button><button data-v="barre" class="${vista === 'barre' ? 'on' : ''}">Barre</button></div></div>
     <div class="seg sm2" data-seg="viaggi" style="margin-top:12px"><button data-v="senza" class="${conV ? '' : 'on'}">Senza viaggi</button><button data-v="con" class="${conV ? 'on' : ''}">Con viaggi</button></div>
     ${vista === 'donut' ? `<div class="donut-wrap">${donut(items, centro)}</div><div class="cat-list">${lista}</div>` : `<div class="bars-list">${barre}</div>`}`, 's7');
