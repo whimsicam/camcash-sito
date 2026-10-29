@@ -9,10 +9,11 @@ const PIGGY = `<svg class="piggy" viewBox="-18 -18 136 136" aria-hidden="true"><
 <circle cx="37" cy="55" r="9.5" fill="#fff" fill-opacity=".3" stroke="#1C1B1B" stroke-width="2.8"/><circle cx="63" cy="55" r="9.5" fill="#fff" fill-opacity=".3" stroke="#1C1B1B" stroke-width="2.8"/>
 <path d="M46.5 54 q3.5 -3 7 0" fill="none" stroke="#1C1B1B" stroke-width="2.8" stroke-linecap="round"/><circle cx="37" cy="56" r="2.8" fill="#1C1B1B"/><circle cx="63" cy="56" r="2.8" fill="#1C1B1B"/></svg>`;
 
+const COPPA = '<svg viewBox="0 0 24 24" width="17" height="17" fill="currentColor"><path d="M7 3h10v2h3v3a4 4 0 0 1-4 4h-.3A5 5 0 0 1 13 14.9V17h3v2.5H8V17h3v-2.1A5 5 0 0 1 8.3 12H8a4 4 0 0 1-4-4V5h3V3zm0 4H6v1a2 2 0 0 0 1.2 1.8A5 5 0 0 1 7 8V7zm10 0v1c0 .6-.1 1.2-.2 1.8A2 2 0 0 0 18 8V7h-1z"/><rect x="7" y="20" width="10" height="1.6" rx=".8"/></svg>';
 const TIPI = {
   stop: ['Fermati', 'c-coral', '!'], slow: ['Rallenta', 'c-yel', '→'], budget: ['Rivedi il budget', 'c-yel', '✎'],
   info: ['Da sapere', 'c-yel', 'i'], ok: ['Bene', 'c-mint', '✓'], margine: ['Puoi spendere', 'c-mint', '+'],
-  abit: ['Abitudine', 'c-lav', '◐'], tantum: ['Una tantum', 'c-lav', '✦'], record: ['Record', 'c-mint', '★'], over: ['Sopra budget', 'c-coral', '!'],
+  abit: ['Abitudine', 'c-lav', '◐'], tantum: ['Una tantum', 'c-lav', '✦'], record: ['Record', 'c-mint', '★'], coppa: ['Record', 'c-yel', COPPA], over: ['Sopra budget', 'c-coral', '!'],
 };
 const b = s => `<b>${esc(s)}</b>`;
 const e0 = v => `${num(v, 0)} €`;
@@ -26,6 +27,24 @@ function mesiChiusiPrima(k, quanti) {
     if (inf.importato && D.tx.some(t => t[1] === m)) out.push(m);   // un mese passato con dati conta come chiuso
   }
   return out;
+}
+
+// giorno con più spese (costi variabili, viaggi inclusi; esclusi affitto e abbonamenti)
+function giornoRecord(dal, al) {
+  const tot = {}, perCat = {};
+  for (const [d, m, c, s, i] of D.tx) {
+    if (d < dal || d > al || !COSTI.includes(c) || ['Housing', 'Subscriptions'].includes(c)) continue;
+    tot[d] = (tot[d] || 0) - i; perCat[d] = perCat[d] || {}; perCat[d][c] = (perCat[d][c] || 0) - i;
+  }
+  const best = Object.entries(tot).sort((x, y) => y[1] - x[1])[0];
+  if (!best || best[1] <= 0) return null;
+  const [d, v] = best, cats = Object.entries(perCat[d]).filter(x => x[1] > 0.5).sort((x, y) => y[1] - x[1]);
+  return { d, v, cats };
+}
+function frRecord(r, quando) {
+  const [y, m, g] = ymd(r.d), wd = ['lunedì', 'martedì', 'mercoledì', 'giovedì', 'venerdì', 'sabato', 'domenica'][dow(y, m, g)];
+  const dett = r.cats.length === 1 ? r.cats[0][0] : r.cats.slice(0, 2).map(([c, v]) => `${c} ${e0(v)}`).join(', ');
+  return { t: 'coppa', p: 22, x: `Il giorno più caro ${quando}: ${b(`${wd} ${g} ${MESI[m - 1]}`)}, ${b(e0(r.v))}${dett ? ` (${dett}${r.cats.length > 2 ? '…' : ''})` : ''}.` };
 }
 
 // ---- regole sul mese in corso (k con dati fino al giorno `fino`)
@@ -57,6 +76,8 @@ function regoleMese(k, info) {
     else if (varSp > atteso * 1.1) out.push({ t: 'slow', p: 70, x: `Spese variabili al ${pct(q)} del budget al giorno ${f}, cioè al ${pct(frac)} del mese. Per rientrare: al massimo ${e0((varBud - varSp) / resto)} al giorno fino a fine mese.` });
     else out.push({ t: 'ok', p: 30, x: `Spese variabili al ${pct(q)} del budget al giorno ${f} (${pct(frac)} del mese): sei in linea. Restano ${e0(varBud - varSp)}, circa ${e0((varBud - varSp) / resto)} al giorno.` });
   }
+  const rec = f >= 3 ? giornoRecord(`${k}-01`, `${k}-${String(f).padStart(2, '0')}`) : null;
+  if (rec) out.push(frRecord(rec, 'del mese'));
   // frequenza bar & ristoranti rispetto ai mesi prima, a parità di giorni
   const BR = 'Bar & Restaurant';
   if (VARIAB.includes(BR) && f >= 7) {
@@ -128,6 +149,8 @@ function regoleMesePrima(k) {
   const vs = VARIAB.reduce((s, c) => s + (a.spese[c] || 0), 0), vb = VARIAB.reduce((s, c) => s + (bud[c] || 0), 0);
   if (vb > 0) out.push({ t: vs > vb ? 'over' : 'ok', p: 90, x: `${meseTit(m)} chiude con ${e0(vs)} di spese variabili su ${e0(vb)} di budget (viaggi esclusi): ${vs > vb ? `${e0(vs - vb)} sopra` : `${e0(vb - vs)} sotto`}${inf.chiuso ? '' : `, dati al ${inf.fino}`}.` });
   if (sopra.length) out.push({ t: 'over', p: 85, x: `Sopra budget: ${sopra.slice(0, 3).map(c => `${b(c)} ${e0(a.spese[c])} su ${e0(bud[c])}`).join(', ')}.` });
+  const rec = giornoRecord(`${m}-01`, `${m}-31`);
+  if (rec) out.push(Object.assign(frRecord(rec, `di ${meseNome(m)}`), { p: 55 }));
   if (sotto.length) out.push({ t: 'ok', p: 60, x: `Sotto budget: ${sotto.slice(0, 4).map(c => b(c)).join(', ')}.` });
   return out;
 }
@@ -149,10 +172,11 @@ function insights(k) {
                         ['Dallo storico', regoleStoria(k)]];
   else gruppi = [['Da fare adesso', regoleMese(k, info).filter(r => ['stop', 'slow'].includes(r.t))],
                  ['Come sta andando', regoleMese(k, info).filter(r => !['stop', 'slow'].includes(r.t)).concat(regoleStoria(k))]];
-  gruppi.forEach(g => g[1].sort((x, y) => y.p - x.p));
+  const coppe = gruppi.flatMap(g => g[1].filter(r => r.t === 'coppa'));
+  gruppi.forEach(g => { g[1] = g[1].filter(r => r.t !== 'coppa'); g[1].sort((x, y) => y.p - x.p); });
   const tutte = gruppi.flatMap(g => g[1]);
   const urg = inizio ? 0 : tutte.filter(r => ['stop', 'slow'].includes(r.t)).length;
-  return { gruppi, tutte, urg, inizio };
+  return { gruppi, tutte, urg, inizio, coppe };
 }
 
 function riga(r) {
@@ -161,11 +185,11 @@ function riga(r) {
 }
 
 function cardInsights(k) {
-  const { gruppi, tutte, urg, inizio } = insights(k);
+  const { gruppi, tutte, urg, inizio, coppe } = insights(k);
   const nota = D.nota && D.nota.testo && D.nota.testo.length ? D.nota : null;
   const dNota = nota ? nota.data.split('-').reverse().slice(0, 2).join('/') : '';
   const sub = [urg ? `${urg} da sistemare` : (inizio ? `${meseNome(sposta(k, -1))} chiuso` : 'tutto in linea'), nota ? `brief del ${dNota}` : ''].filter(Boolean).join(' · ');
-  const MAX = 5;
+  const MAX = 3;
   let mostrate = 0, corpo = '', resto = '';
   for (const [tit, righe] of gruppi) {
     if (!righe.length) continue;
@@ -178,6 +202,34 @@ function cardInsights(k) {
   const notaHtml = nota ? `<div class="brief"><div class="k"><span>The Piggy Brief</span><span>${dNota}</span></div>${nota.testo.map(p => `<p>${p}</p>`).join('')}</div>` : '';
   const open = (stato.aperti || {}).ins ? 'open' : '';
   return `<details class="card insights" data-id="ins" ${open}><summary>${PIGGY}<div class="t"><h3>Insights</h3><div class="sub">${sub}</div></div>${CHEV}</summary>
-    <div class="body">${notaHtml}${corpo || '<p class="muted">Ancora niente da segnalare: torna fra qualche giorno.</p>'}
+    <div class="body">${notaHtml}${corpo || '<p class="muted">Ancora niente da segnalare: torna fra qualche giorno.</p>'}${coppe.length ? `<div class="ins-coppa">${coppe.map(riga).join('')}</div>` : ''}
     ${altre > 0 ? `<details class="ins-altre"><summary>Vedi tutte (${tutte.length})</summary>${resto}</details>` : ''}</div></details>`;
+}
+
+// ---- scheda Insights dell'anno
+function cardInsightsAnno(y) {
+  const mesi = Array.from({ length: 12 }, (_, i) => mk(y, i + 1)).filter(m => infoMese(m).importato && D.tx.some(t => t[1] === m));
+  if (!mesi.length) return '';
+  const out = [], ag = Object.fromEntries(mesi.map(m => [m, agg(m, infoMese(m).fino)]));
+  const chiusi = mesi.filter(m => !infoMese(m).corrente);
+  const rec = giornoRecord(`${y}-01-01`, `${y}-12-31`);
+  if (rec) out.push(Object.assign(frRecord(rec, `dell'anno`), { p: 90 }));
+  if (chiusi.length) {
+    const caro = chiusi.slice().sort((a, b) => ag[b].costi - ag[a].costi)[0];
+    out.push({ t: 'coppa', p: 80, x: `Il mese più caro: ${b(meseTit(caro))}, ${b(e0(ag[caro].costi))} di spese, viaggi inclusi.` });
+    const sr = m => { const en = entrateSR(ag[m]); return en > 0 ? (en - ag[m].costi) / en : -9; };
+    const top = chiusi.slice().sort((a, b) => sr(b) - sr(a))[0];
+    if (sr(top) > -9) out.push({ t: 'coppa', p: 85, x: `Il mese in cui hai risparmiato di più: ${b(meseTit(top))}, savings rate ${b(pct(sr(top)))}${conExtra() ? '' : ' senza extra'}.` });
+  }
+  // categoria che pesa di più
+  const tot = {}; VARIAB.forEach(c => tot[c] = mesi.reduce((s, m) => s + (ag[m].spese[c] || 0), 0));
+  const totV = Object.values(tot).reduce((s, v) => s + v, 0), [cTop, vTop] = Object.entries(tot).sort((a, b) => b[1] - a[1])[0] || [];
+  if (cTop && totV > 0) out.push({ t: 'abit', p: 60, x: `La voce che pesa di più tra le spese variabili: ${b(cTop)}, ${e0(vTop)}, il ${pct(vTop / totV)} del totale (viaggi esclusi).` });
+  regoleStoria(sposta(mesi[mesi.length - 1], 1)).filter(r => ['abit', 'budget'].includes(r.t)).forEach(r => out.push(r));
+  out.sort((a, b) => b.p - a.p);
+  const vis = out.slice(0, 3), nas = out.slice(3);
+  const open = (stato.aperti || {}).insA ? 'open' : '';
+  return `<details class="card insights" data-id="insA" ${open}><summary>${PIGGY}<div class="t"><h3>Insights</h3><div class="sub">il ${y} finora</div></div>${CHEV}</summary>
+    <div class="body"><div class="ins-sep">L'anno in pillole</div>${vis.map(riga).join('')}
+    ${nas.length ? `<details class="ins-altre"><summary>Vedi tutte (${out.length})</summary>${nas.map(riga).join('')}</details>` : ''}</div></details>`;
 }

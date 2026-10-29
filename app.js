@@ -566,7 +566,7 @@ function vistaAnno() {
     `<div class="panel"><div class="yearmap">${svg(W4, 16 + 7 * (cs + gp), s4).replace('width="100%"', `width="${W4}"`)}</div>${legendaScala(maxG)}</div>
      <div class="note">Media nei giorni con spese: ${eur(attivi ? somG / attivi : 0)}. Costi variabili per data, senza affitto, abbonamenti e viaggi.</div>`, 's12');
   const selAnni = anni.length > 1 ? `<div class="seg" data-seg="anno" style="margin:-4px 0 14px">${anni.map(a => `<button data-v="${a}" class="${a === y ? 'on' : ''}">${a}</button>`).join('')}</div>` : '';
-  return headPagina('Anno', String(y), chipDati() + `<span class="chip">${periodo} · ${att.length} mesi</span>`) + selAnni +
+  return headPagina('Anno', String(y), chipDati() + `<span class="chip">${periodo} · ${att.length} mesi</span>`) + selAnni + (typeof cardInsightsAnno === 'function' ? cardInsightsAnno(y) : '') +
     colonne([[1, kpi], [3, cardCum], [5, cardSR]], [[2, cardFlu], [4, cardBar]], `<div style="margin-top:14px">${cardCal}</div>`);
 }
 
