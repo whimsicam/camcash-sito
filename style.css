@@ -301,3 +301,7 @@ svg .lbl-b{font-size:11.5px;fill:var(--ink);font-weight:700}
   .sheet{border-radius:28px;max-height:88vh}
   .grab{display:none}
 }
+
+.kpi .k.kseg{display:flex;align-items:center;justify-content:space-between;gap:8px}
+.kpi .k.kseg .seg.ico2 button{width:36px;height:26px}
+.seg-row{display:flex;justify-content:flex-end;margin:0 0 10px}
