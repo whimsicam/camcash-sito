@@ -61,7 +61,8 @@ function salvaUI() { try { localStorage.setItem('camcash.ui', JSON.stringify({ t
 const conExtra = () => stato.extra !== 'senza';
 const entrateSR = a => conExtra() ? a.entrate : a.entrate - a.ricavi.Extra;
 const GIFT = '<rect x="4.5" y="11" width="15" height="9" rx="1.6" fill="currentColor" stroke="none"/><rect x="3" y="7.5" width="18" height="4.2" rx="1.2" fill="currentColor" stroke="none"/><path d="M12 7.5c-1.2-3.2-5.2-3.6-5.2-1.6S10 7.5 12 7.5c2 0 5.2.4 5.2-1.6S13.2 4.3 12 7.5z" stroke-width="1.7"/>';
-function segExtra() {
+function segExtra(nessuno) {
+  if (nessuno) return `<span class="seg ico2 seg-off" title="Nessun extra in questo mese" aria-label="Nessun extra in questo mese"><span class="b"><svg viewBox="0 0 24 24" class="ico">${GIFT}<path d="M3.5 20.5 20.5 3.5" stroke-width="2.4" stroke="#fff"/><path d="M3.5 20.5 20.5 3.5" stroke-width="1.6"/></svg></span></span>`;
   const c = conExtra();
   return `<div class="seg ico2" data-seg="extra"><button data-v="senza" title="Senza extra (13ª, 14ª, bonus)" aria-label="Senza extra" class="${c ? '' : 'on'}"><svg viewBox="0 0 24 24" class="ico">${GIFT}<path d="M3.5 20.5 20.5 3.5" stroke-width="2.4" stroke="#fff"/><path d="M3.5 20.5 20.5 3.5" stroke-width="1.6"/></svg></button><button data-v="con" title="Con extra (13ª, 14ª, bonus)" aria-label="Con extra" class="${c ? 'on' : ''}"><svg viewBox="0 0 24 24" class="ico">${GIFT}</svg></button></div>`;
 }
@@ -389,12 +390,14 @@ function vistaMese(k, chiusoForzato) {
       ${soldiMese(a, info)}
       <div class="note">${gg > 0 && info.fino < ymd(OGGI)[2] ? `Dati fino al ${info.fino}: la cifra al giorno vale dal ${info.fino + 1}. ` : ''}Viaggi esclusi dal budget (Fondo viaggi).</div>`, 'hero s5');
   } else {
-    const [ii, dd] = num(a.utile).split(',');
+    const ext = a.ricavi.Extra > 0.5 ? a.ricavi.Extra : 0;
+    const av = conExtra() || !ext ? a : { ...a, entrate: a.entrate - ext, utile: a.utile - ext, ricavi: { ...a.ricavi, Extra: 0 } };
+    const [ii, dd] = num(av.utile).split(',');
     const q = spesoNoWT / (bud || 1);
-    hero = card(`<div class="card-head"><span class="label">Risultato del mese</span><span class="chip ${a.utile >= 0 ? 'mint' : 'coral'}">${a.utile >= 0 ? 'Risparmio' : 'In perdita'}</span></div>
-      <div class="big ${a.utile < 0 ? 'neg' : ''}">${a.utile > 0 ? '+' : ''}${ii}<span class="dec">,${dd} €</span></div>
-      <div class="line">savings rate ${a.entrate > 0 ? pct(a.utile / a.entrate) : '–'}${a.ricavi.Extra > 0.5 && a.entrate - a.ricavi.Extra > 0 ? ` (${pct((a.entrate - a.ricavi.Extra - a.costi) / (a.entrate - a.ricavi.Extra))} senza extra)` : ''} · budget usato ${pct(q)}</div>
-      ${soldiMese(a, info)}
+    hero = card(`<div class="card-head"><span class="label">Risultato del mese</span><span class="head-r"><span class="chip ${av.utile >= 0 ? 'mint' : 'coral'}">${av.utile >= 0 ? 'Risparmio' : 'In perdita'}</span>${segExtra(!ext)}</span></div>
+      <div class="big ${av.utile < 0 ? 'neg' : ''}">${av.utile > 0 ? '+' : ''}${ii}<span class="dec">,${dd} €</span></div>
+      <div class="line">${ext && !conExtra() ? 'senza extra · ' : ''}savings rate ${av.entrate > 0 ? pct(av.utile / av.entrate) : '–'} · budget usato ${pct(q)}</div>
+      ${soldiMese(av, info)}
       <div class="note">Viaggi esclusi dal budget (Fondo viaggi); l'utile li comprende.</div>`, 'hero s5');
   }
   const p = prec ? 'p' : 'm';
@@ -466,7 +469,8 @@ function vistaAnno() {
   const periodo = `${MESI_B[ymd(att[0])[1] - 1]}–${MESI_B[ymd(att[att.length - 1])[1] - 1]}`;
   const kpi = card(`<div class="kpis">
       <div class="kpi wide kpi-top"><div class="row1"><div class="k">Spese ${periodo}</div>${segExtra()}</div>
-        <div class="row2"><div class="v">${eur(costi)}</div><div class="mini"><span class="chip"><span>media <b>${eur0(costi / att.length)}</b>/mese</span></span><span class="chip ${costi > budAnno + 0.5 ? 'coral' : 'mint'}"><span>budget <b>${eur0(budAnno)}</b></span></span></div></div></div>
+        <div class="row2"><div><div class="v">${eur(costi)}</div><div class="s">budget ${eur0(budAnno)}</div><div class="s ${costi > budAnno + 0.5 ? 'neg' : 'pos'}">${costi > budAnno + 0.5 ? '+' + eur0(costi - budAnno) + ' sopra il budget' : eur0(budAnno - costi) + ' sotto il budget'}</div></div>
+        <div class="mini"><span class="chip"><span>spese <b>${eur0(costi / att.length)}</b>/mese</span></span><span class="chip ${costi > budAnno + 0.5 ? 'coral' : 'mint'}"><span>budget <b>${eur0(budAnno / att.length)}</b>/mese</span></span></div></div></div>
       <div class="kpi"><div class="k">${conExtra() ? 'Utile' : 'Utile senza extra'}</div><div class="v">${sgn(utileSR)}</div><div class="s">entrate ${eur0(entSR)}</div>${conExtra() && extraTot > 0.5 ? `<div class="s">di cui extra ${eur0(extraTot)}</div>` : ''}</div>
       <div class="kpi"><div class="k">${conExtra() ? 'Savings rate' : 'Savings rate senza extra'}</div><div class="v">${entSR > 0 ? pct(utileSR / entSR, 1) : '–'}</div><div class="s">utile / entrate</div></div></div>
       <div class="note">${att.includes(cur) && !ag[cur].ricavi.Salary ? `${meseTit(cur)} è in corso e lo stipendio non è ancora arrivato: abbassa l'utile finché non entra.` : ''}</div>`, 's5');

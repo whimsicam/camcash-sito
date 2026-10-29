@@ -309,3 +309,8 @@ svg .lbl-b{font-size:11.5px;fill:var(--ink);font-weight:700}
 .kpi-top .row2 .v{margin-top:0}
 .kpi-top .mini{display:flex;flex-direction:column;align-items:flex-end;gap:5px;flex:none}
 .kpi-top .mini .chip b{font-weight:800}
+.head-r{display:flex;align-items:center;gap:8px}
+.seg-off{opacity:.38;pointer-events:none}
+.seg-off .b{width:44px;height:30px;display:grid;place-items:center}
+.kpi-top .s.neg{color:var(--coral-ink);font-weight:700}
+.kpi-top .s.pos{color:var(--mint-ink);font-weight:700}
