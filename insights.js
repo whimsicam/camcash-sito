@@ -174,7 +174,7 @@ function insights(k) {
                  ['Come sta andando', regoleMese(k, info).filter(r => !['stop', 'slow'].includes(r.t)).concat(regoleStoria(k))]];
   const coppe = gruppi.flatMap(g => g[1].filter(r => r.t === 'coppa'));
   gruppi.forEach(g => { g[1] = g[1].filter(r => r.t !== 'coppa'); g[1].sort((x, y) => y.p - x.p); });
-  const tutte = gruppi.flatMap(g => g[1]);
+  const tutte = gruppi.flatMap(g => g[1]);   // senza i record (coppe), che vanno in testa a "Vedi tutte"
   const urg = inizio ? 0 : tutte.filter(r => ['stop', 'slow'].includes(r.t)).length;
   return { gruppi, tutte, urg, inizio, coppe };
 }
@@ -198,12 +198,13 @@ function cardInsights(k) {
     if (nas.length) resto += (vis.length ? '' : `<div class="ins-sep">${tit}</div>`) + nas.map(riga).join('');
     mostrate += vis.length;
   }
-  const altre = tutte.length - mostrate;
+  if (coppe.length) resto = `<div class="ins-coppa">${coppe.map(riga).join('')}</div>` + resto;
+  const altre = tutte.length + coppe.length - mostrate, totale = tutte.length + coppe.length;
   const notaHtml = nota ? `<div class="brief"><div class="k"><span>The Piggy Brief</span><span>${dNota}</span></div>${nota.testo.map(p => `<p>${p}</p>`).join('')}</div>` : '';
   const open = (stato.aperti || {}).ins ? 'open' : '';
   return `<details class="card insights" data-id="ins" ${open}><summary>${PIGGY}<div class="t"><h3>Insights</h3><div class="sub">${sub}</div></div>${CHEV}</summary>
-    <div class="body">${notaHtml}${corpo || '<p class="muted">Ancora niente da segnalare: torna fra qualche giorno.</p>'}${coppe.length ? `<div class="ins-coppa">${coppe.map(riga).join('')}</div>` : ''}
-    ${altre > 0 ? `<details class="ins-altre"><summary>Vedi tutte (${tutte.length})</summary>${resto}</details>` : ''}</div></details>`;
+    <div class="body">${notaHtml}${corpo || '<p class="muted">Ancora niente da segnalare: torna fra qualche giorno.</p>'}
+    ${altre > 0 ? `<details class="ins-altre"><summary>Vedi tutte (${totale})</summary>${resto}</details>` : ''}</div></details>`;
 }
 
 // ---- scheda Insights dell'anno
@@ -217,9 +218,6 @@ function cardInsightsAnno(y) {
   if (chiusi.length) {
     const caro = chiusi.slice().sort((a, b) => ag[b].costi - ag[a].costi)[0];
     out.push({ t: 'coppa', p: 80, x: `Il mese più caro: ${b(meseTit(caro))}, ${b(e0(ag[caro].costi))} di spese, viaggi inclusi.` });
-    const sr = m => { const en = entrateSR(ag[m]); return en > 0 ? (en - ag[m].costi) / en : -9; };
-    const top = chiusi.slice().sort((a, b) => sr(b) - sr(a))[0];
-    if (sr(top) > -9) out.push({ t: 'coppa', p: 85, x: `Il mese in cui hai risparmiato di più: ${b(meseTit(top))}, savings rate ${b(pct(sr(top)))}${conExtra() ? '' : ' senza extra'}.` });
   }
   // categoria che pesa di più
   const tot = {}; VARIAB.forEach(c => tot[c] = mesi.reduce((s, m) => s + (ag[m].spese[c] || 0), 0));
@@ -227,9 +225,10 @@ function cardInsightsAnno(y) {
   if (cTop && totV > 0) out.push({ t: 'abit', p: 60, x: `La voce che pesa di più tra le spese variabili: ${b(cTop)}, ${e0(vTop)}, il ${pct(vTop / totV)} del totale (viaggi esclusi).` });
   regoleStoria(sposta(mesi[mesi.length - 1], 1)).filter(r => ['abit', 'budget'].includes(r.t)).forEach(r => out.push(r));
   out.sort((a, b) => b.p - a.p);
-  const vis = out.slice(0, 3), nas = out.slice(3);
+  const coppe = out.filter(r => r.t === 'coppa'), altre = out.filter(r => r.t !== 'coppa');
+  const vis = altre.slice(0, 3), nas = altre.slice(3);
   const open = (stato.aperti || {}).insA ? 'open' : '';
   return `<details class="card insights" data-id="insA" ${open}><summary>${PIGGY}<div class="t"><h3>Insights</h3><div class="sub">il ${y} finora</div></div>${CHEV}</summary>
     <div class="body"><div class="ins-sep">L'anno in pillole</div>${vis.map(riga).join('')}
-    ${nas.length ? `<details class="ins-altre"><summary>Vedi tutte (${out.length})</summary>${nas.map(riga).join('')}</details>` : ''}</div></details>`;
+    ${coppe.length + nas.length ? `<details class="ins-altre"><summary>Vedi tutte (${out.length})</summary>${coppe.length ? `<div class="ins-coppa">${coppe.map(riga).join('')}</div>` : ''}${nas.map(riga).join('')}</details>` : ''}</div></details>`;
 }
