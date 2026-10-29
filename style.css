@@ -125,8 +125,10 @@ details.card .body>.panel:first-child{margin-top:0}
 .donut-wrap{margin-top:10px}
 
 /* due interruttori uguali, allineati a destra */
-.toggles{display:flex;flex-direction:column;gap:6px;align-items:stretch;flex:none;width:186px}
-.seg.eq{display:flex}
+.toggles{display:flex;flex-direction:column;gap:6px;align-items:stretch;flex:none}
+.seg.ico2{display:flex}
+.seg.ico2 button{flex:1;width:44px;height:30px;padding:0;display:grid;place-items:center}
+.seg.ico2 svg{width:18px;height:18px}
 .seg.eq button{flex:1;padding:6px 4px;font-size:12px;text-align:center;white-space:nowrap}
 
 /* segmented */

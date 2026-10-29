@@ -228,9 +228,9 @@ function cardCategorie(a, k, id) {
       <div class="mark" style="left:calc(${r.b > 0 ? BM : 0}% - 1px)"></div></div></div>`;
   }).join('') + `<div class="bar-key"><span><i class="mk"></i>budget</span><span><i class="sw" style="background:var(--coral)"></i>oltre il budget</span></div>`;
   const vista = (stato.vistaCat || 'donut');
-  return card(`<div class="card-head"><div><h3>Ripartizione spese</h3><div class="card-sub nowrap">Budget ${eur0(btot)}</div></div>
-    <div class="toggles"><div class="seg eq" data-seg="vistaCat"><button data-v="donut" class="${vista === 'donut' ? 'on' : ''}">Ciambella</button><button data-v="barre" class="${vista === 'barre' ? 'on' : ''}">Barre</button></div>
-    <div class="seg eq" data-seg="viaggi"><button data-v="senza" class="${conV ? '' : 'on'}">Senza viaggi</button><button data-v="con" class="${conV ? 'on' : ''}">Con viaggi</button></div></div></div>
+  return card(`<div class="card-head"><div><h3>Ripartizione spese</h3><div class="card-sub nowrap">Budget ${eur0(btot)} · ${conV ? 'con' : 'senza'} viaggi</div></div>
+    <div class="toggles"><div class="seg ico2" data-seg="vistaCat"><button data-v="donut" title="Ciambella" aria-label="Ciambella" class="${vista === 'donut' ? 'on' : ''}"><svg viewBox="0 0 24 24" class="ico"><circle cx="12" cy="12" r="7.5" stroke-width="3.2" stroke-dasharray="14 3.5"/></svg></button><button data-v="barre" title="Barre" aria-label="Barre" class="${vista === 'barre' ? 'on' : ''}"><svg viewBox="0 0 24 24" class="ico"><path d="M5 7h14M5 12h9M5 17h11" stroke-width="2.6"/></svg></button></div>
+    <div class="seg ico2" data-seg="viaggi"><button data-v="senza" title="Senza viaggi" aria-label="Senza viaggi" class="${conV ? '' : 'on'}"><svg viewBox="0 0 24 24" class="ico"><path d="M21 16v-2l-8-5V3.5c0-.83-.67-1.5-1.5-1.5S10 2.67 10 3.5V9l-8 5v2l8-2.5V19l-2 1.5V22l3.5-1 3.5 1v-1.5L13 19v-5.5l8 2.5z" fill="currentColor" stroke="none"/><path d="M3.5 20.5 20.5 3.5" stroke-width="2.4" stroke="#fff" /><path d="M3.5 20.5 20.5 3.5" stroke-width="1.6"/></svg></button><button data-v="con" title="Con viaggi" aria-label="Con viaggi" class="${conV ? 'on' : ''}"><svg viewBox="0 0 24 24" class="ico"><path d="M21 16v-2l-8-5V3.5c0-.83-.67-1.5-1.5-1.5S10 2.67 10 3.5V9l-8 5v2l8-2.5V19l-2 1.5V22l3.5-1 3.5 1v-1.5L13 19v-5.5l8 2.5z" fill="currentColor" stroke="none"/></svg></button></div></div></div>
     ${vista === 'donut' ? `<div class="donut-wrap">${donut(items, centro)}</div><div class="cat-grid">${lista}</div>` : `<div class="bars-list">${barre}</div>`}`, 's7');
 }
 
