@@ -4,12 +4,12 @@
 /* ------------------------------------------------------------------ costanti */
 const COLORI_BASE = {
   'Housing': '#B8C0EC', 'Subscriptions': '#D4BBFC', 'Groceries': '#FDE293', 'Bar & Restaurant': '#F8B4D9',
-  'Club': '#C3A6EE', 'Transport': '#A8DADC', 'Weekend & Travel': '#A9D4F5', 'Shopping': '#F9C9A8',
-  'Health': '#F3D9B1', 'Hobby': '#C5E0B4', 'Admin': '#D9D4CB', 'Other': '#E8D5C4',
+  'Going Out': '#C3A6EE', 'Transport': '#A8DADC', 'Weekend & Travel': '#A9D4F5', 'Shopping': '#F9C9A8',
+  'Health & Care': '#F3D9B1', 'Collectibles': '#C5E0B4', 'Gifts': '#F6C1C9', 'Admin': '#D9D4CB', 'Other': '#E8D5C4',
   'Altre spese': '#E2DCD0', 'PAC': '#9FD8B8', 'Investimenti extra': '#B9E3CC', 'In liquidità': '#EFE9DD',
   'Non ancora speso': '#EFE9DD'
 };
-const EXTRA = ['#F6C1C9', '#BFD7F2', '#E4D1F5', '#CDE8D9', '#FBD9A6', '#D8E4B8', '#F2CFE6', '#C9E4EC'];
+const EXTRA = ['#BFD7F2', '#E4D1F5', '#CDE8D9', '#FBD9A6', '#D8E4B8', '#F2CFE6', '#C9E4EC'];
 const COLORI = new Proxy(COLORI_BASE, { get: (t, k) => t[k] || EXTRA[[...String(k)].reduce((h, c) => (h * 31 + c.charCodeAt(0)) >>> 0, 7) % EXTRA.length] });
 const MESI = ['gennaio', 'febbraio', 'marzo', 'aprile', 'maggio', 'giugno', 'luglio', 'agosto', 'settembre', 'ottobre', 'novembre', 'dicembre'];
 const MESI_B = ['Gen', 'Feb', 'Mar', 'Apr', 'Mag', 'Giu', 'Lug', 'Ago', 'Set', 'Ott', 'Nov', 'Dic'];
