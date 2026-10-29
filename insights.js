@@ -179,6 +179,15 @@ function insights(k) {
   return { gruppi, tutte, urg, inizio, coppe };
 }
 
+function rigaCoppe(cs) {
+  if (!cs.length) return '';
+  return `<div class="ins-coppa">${riga({ t: 'coppa', x: cs.map(r => r.x).join('<br>') })}</div>`;
+}
+function briefHtml(par, data) {
+  if (!par || !par.length) return '';
+  const d = data ? data.split('-').reverse().slice(0, 2).join('/') : '';
+  return `<div class="brief"><div class="k"><span>The Piggy Brief</span><span>${d}</span></div>${par.map(p => `<p>${p}</p>`).join('')}</div>`;
+}
 function riga(r) {
   const [lab, cls, ic] = TIPI[r.t];
   return `<div class="ins"><div class="ic ${cls}">${ic}</div><div class="tx"><span class="tag ${cls}">${lab}</span>${r.x}</div></div>`;
@@ -198,9 +207,9 @@ function cardInsights(k) {
     if (nas.length) resto += (vis.length ? '' : `<div class="ins-sep">${tit}</div>`) + nas.map(riga).join('');
     mostrate += vis.length;
   }
-  if (coppe.length) resto = `<div class="ins-coppa">${coppe.map(riga).join('')}</div>` + resto;
+  if (coppe.length) resto = rigaCoppe(coppe) + resto;
   const altre = tutte.length + coppe.length - mostrate, totale = tutte.length + coppe.length;
-  const notaHtml = nota ? `<div class="brief"><div class="k"><span>The Piggy Brief</span><span>${dNota}</span></div>${nota.testo.map(p => `<p>${p}</p>`).join('')}</div>` : '';
+  const notaHtml = nota ? briefHtml(nota.testo, nota.data) : '';
   const open = (stato.aperti || {}).ins ? 'open' : '';
   return `<details class="card insights" data-id="ins" ${open}><summary>${PIGGY}<div class="t"><h3>Insights</h3><div class="sub">${sub}</div></div>${CHEV}</summary>
     <div class="body">${notaHtml}${corpo || '<p class="muted">Ancora niente da segnalare: torna fra qualche giorno.</p>'}
@@ -228,7 +237,7 @@ function cardInsightsAnno(y) {
   const coppe = out.filter(r => r.t === 'coppa'), altre = out.filter(r => r.t !== 'coppa');
   const vis = altre.slice(0, 3), nas = altre.slice(3);
   const open = (stato.aperti || {}).insA ? 'open' : '';
-  return `<details class="card insights" data-id="insA" ${open}><summary>${PIGGY}<div class="t"><h3>Insights</h3><div class="sub">il ${y} finora</div></div>${CHEV}</summary>
-    <div class="body"><div class="ins-sep">L'anno in pillole</div>${vis.map(riga).join('')}
-    ${coppe.length + nas.length ? `<details class="ins-altre"><summary>Vedi tutte (${out.length})</summary>${coppe.length ? `<div class="ins-coppa">${coppe.map(riga).join('')}</div>` : ''}${nas.map(riga).join('')}</details>` : ''}</div></details>`;
+  return `<details class="card insights" data-id="insA" ${open}><summary>${PIGGY}<div class="t"><h3>Insights</h3><div class="sub">il ${y} finora${D.nota && D.nota.anno ? ` · brief del ${D.nota.data.split('-').reverse().slice(0, 2).join('/')}` : ''}</div></div>${CHEV}</summary>
+    <div class="body">${D.nota && D.nota.anno ? briefHtml(D.nota.anno, D.nota.data) : ''}<div class="ins-sep">L'anno in pillole</div>${vis.map(riga).join('')}
+    ${coppe.length + nas.length ? `<details class="ins-altre"><summary>Vedi tutte (${out.length})</summary>${rigaCoppe(coppe)}${nas.map(riga).join('')}</details>` : ''}</div></details>`;
 }
