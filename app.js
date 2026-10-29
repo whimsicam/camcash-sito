@@ -371,8 +371,9 @@ function vistaMese(k, chiusoForzato) {
   const prec = chiusoForzato;
   const eyebrow = prec ? 'Mesi' : 'Mese in corso';
   const scelta = prec ? sceltaMesi('meseSel', mesiConDati().filter(m => m !== meseDi(OGGI)), k) : '';
+  const ins = !prec && typeof cardInsights === 'function' ? cardInsights(k) : '';
   if (!info.importato) {
-    return headPagina(eyebrow, meseTit(k), chipDati()) + scelta + card(`<div class="empty-card"><h3>${meseTit(k)} non ancora importato</h3>
+    return headPagina(eyebrow, meseTit(k), chipDati()) + scelta + ins + card(`<div class="empty-card"><h3>${meseTit(k)} non ancora importato</h3>
       <p class="muted">I dati arrivano al ${D.data_al.split('-').reverse().join('/')}. Il mese comparirà al prossimo aggiornamento del file.</p></div>`);
   }
   const a = agg(k, info.fino);
@@ -401,7 +402,7 @@ function vistaMese(k, chiusoForzato) {
       <div class="note">Viaggi esclusi dal budget (Fondo viaggi); l'utile li comprende.</div>`, 'hero s5');
   }
   const p = prec ? 'p' : 'm';
-  return headPagina(eyebrow, meseTit(k), chipDati() + (info.corrente ? '' : '<span class="chip">mese chiuso</span>')) + scelta +
+  return headPagina(eyebrow, meseTit(k), chipDati() + (info.corrente ? '' : '<span class="chip">mese chiuso</span>')) + scelta + ins +
     colonne([[1, hero], [3, cardRitmo(a, info, p + 'rit')], [5, cardCalendario(info, p + 'cal')]],
             [[2, cardCategorie(a, k, p + 'cat')], [4, cardFlusso(a, info, p + 'flu')], [6, cardSettimana(info, p + 'set')]]);
 }
@@ -668,6 +669,7 @@ async function caricaTutto(env, pw) {
     } catch (e) { console.warn('archivio non caricato', f); }
   }
   d.tx.sort((x, y) => x[0] < y[0] ? -1 : x[0] > y[0] ? 1 : 0);
+  try { d.nota = await decifra(await (await fetch('nota.enc.json', { cache: 'no-store' })).json(), pw); } catch (e) { d.nota = null; }
   return d;
 }
 async function init() {

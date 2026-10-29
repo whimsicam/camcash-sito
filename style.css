@@ -317,3 +317,28 @@ svg .lbl-b{font-size:11.5px;fill:var(--ink);font-weight:700}
 .seg-off .b{width:44px;height:30px;display:grid;place-items:center}
 .kpi-top .s.neg{color:var(--coral-ink);font-weight:700}
 .kpi-top .s.pos{color:var(--mint-ink);font-weight:700}
+
+/* Insights */
+details.card.insights{position:relative;margin-bottom:14px}
+details.card.insights::before{content:"";position:absolute;inset:7px;border:1.5px dashed #E2D6C3;border-radius:18px;pointer-events:none}
+details.card.insights>summary{padding:14px 18px;gap:12px}
+details.card.insights h3{margin:0;font-size:17px;font-weight:800}
+details.card.insights .sub{font-size:12.5px;color:var(--muted);margin-top:1px}
+.piggy{width:64px;height:64px;flex:none;margin:-8px -6px -8px -8px;overflow:visible}
+details.card.insights .body{padding:0 18px 18px}
+.brief{background:var(--panel);border-radius:16px;padding:14px 14px 12px;margin-bottom:4px}
+.brief .k{font-size:11.5px;font-weight:700;letter-spacing:.06em;text-transform:uppercase;color:var(--muted);display:flex;justify-content:space-between}
+.brief p{margin:6px 0 0;font-size:14.5px;line-height:1.45}
+.ins-sep{display:flex;align-items:center;gap:8px;margin:16px 2px 6px;font-size:11.5px;font-weight:700;letter-spacing:.06em;text-transform:uppercase;color:var(--muted)}
+.ins-sep::after{content:"";flex:1;border-top:1.5px dashed #E2D6C3}
+.ins{display:flex;gap:11px;padding:10px 2px;border-bottom:1px dashed #EEE5D7}
+.ins:last-child{border-bottom:0}
+.ins .ic{width:30px;height:30px;border-radius:10px;display:grid;place-items:center;flex:none;font-size:15px;font-weight:800}
+.ins .tx{font-size:14px;line-height:1.4}
+.ins .tx b{font-weight:800}
+.ins .tag{display:table;font-size:11px;font-weight:700;padding:1px 8px;border-radius:999px;margin-bottom:3px}
+.c-coral{background:var(--coral-bg);color:var(--coral-ink)} .c-yel{background:var(--yellow-bg);color:var(--yellow-ink)}
+.c-mint{background:var(--mint-bg);color:var(--mint-ink)} .c-lav{background:#EFE6FD;color:#6A4BA8}
+.ins-altre>summary{list-style:none;cursor:pointer;margin-top:12px;text-align:center;font-size:13px;font-weight:700;color:var(--ink-2);padding:9px;border-radius:999px;background:var(--panel)}
+.ins-altre>summary::-webkit-details-marker{display:none}
+.ins-altre[open]>summary{display:none}
