@@ -63,7 +63,7 @@ const entrateSR = a => conExtra() ? a.entrate : a.entrate - a.ricavi.Extra;
 const GIFT = '<rect x="4.5" y="11" width="15" height="9" rx="1.6" fill="currentColor" stroke="none"/><rect x="3" y="7.5" width="18" height="4.2" rx="1.2" fill="currentColor" stroke="none"/><path d="M12 7.5c-1.2-3.2-5.2-3.6-5.2-1.6S10 7.5 12 7.5c2 0 5.2.4 5.2-1.6S13.2 4.3 12 7.5z" stroke-width="1.7"/>';
 function segExtra() {
   const c = conExtra();
-  return `<div class="seg ico2" data-seg="extra"><button data-v="senza" title="Senza 13ª, 14ª e bonus" aria-label="Senza 13ª, 14ª e bonus" class="${c ? '' : 'on'}"><svg viewBox="0 0 24 24" class="ico">${GIFT}<path d="M3.5 20.5 20.5 3.5" stroke-width="2.4" stroke="#fff"/><path d="M3.5 20.5 20.5 3.5" stroke-width="1.6"/></svg></button><button data-v="con" title="Con 13ª, 14ª e bonus" aria-label="Con 13ª, 14ª e bonus" class="${c ? 'on' : ''}"><svg viewBox="0 0 24 24" class="ico">${GIFT}</svg></button></div>`;
+  return `<div class="seg ico2" data-seg="extra"><button data-v="senza" title="Senza extra (13ª, 14ª, bonus)" aria-label="Senza extra" class="${c ? '' : 'on'}"><svg viewBox="0 0 24 24" class="ico">${GIFT}<path d="M3.5 20.5 20.5 3.5" stroke-width="2.4" stroke="#fff"/><path d="M3.5 20.5 20.5 3.5" stroke-width="1.6"/></svg></button><button data-v="con" title="Con extra (13ª, 14ª, bonus)" aria-label="Con extra" class="${c ? 'on' : ''}"><svg viewBox="0 0 24 24" class="ico">${GIFT}</svg></button></div>`;
 }
 // aggregato di un mese di competenza fino al giorno `fino` (incluso)
 function agg(k, fino = 31) {
@@ -460,13 +460,15 @@ function vistaAnno() {
   const ag = Object.fromEntries(mesi.map(m => [m, att.includes(m) ? agg(m, infoMese(m).fino) : null]));
   const somma = f => att.reduce((s, m) => s + f(ag[m]), 0);
   const costi = somma(a => a.costi), entrate = somma(a => a.entrate), utile = entrate - costi;
+  const budAnno = att.reduce((s, m) => s + budgetCosti(m), 0);
   const entSR = somma(entrateSR), utileSR = entSR - costi, extraTot = somma(a => a.ricavi.Extra);
   const cur = meseDi(OGGI), chiusi = att.filter(m => m !== cur && infoMese(m).chiuso);
   const periodo = `${MESI_B[ymd(att[0])[1] - 1]}–${MESI_B[ymd(att[att.length - 1])[1] - 1]}`;
   const kpi = card(`<div class="kpis">
-      <div class="kpi wide"><div class="k">Spese ${periodo}</div><div class="v">${eur(costi)}</div><div class="s">Media ${eur0(costi / att.length)} al mese · budget ${eur0(att.reduce((s, m) => s + budgetCosti(m), 0))}</div></div>
-      <div class="kpi"><div class="k">${conExtra() ? 'Utile' : 'Utile senza extra'}</div><div class="v">${sgn(utileSR)}</div><div class="s">entrate ${eur0(entSR)}${conExtra() && extraTot > 0.5 ? ` · di cui extra ${eur0(extraTot)}` : ''}</div></div>
-      <div class="kpi"><div class="k kseg"><span>Savings rate</span>${segExtra()}</div><div class="v">${entSR > 0 ? pct(utileSR / entSR, 1) : '–'}</div><div class="s">${conExtra() ? 'utile / entrate' : 'senza 13ª, 14ª e bonus'}</div></div></div>
+      <div class="kpi wide kpi-top"><div class="row1"><div class="k">Spese ${periodo}</div>${segExtra()}</div>
+        <div class="row2"><div class="v">${eur(costi)}</div><div class="mini"><span class="chip"><span>media <b>${eur0(costi / att.length)}</b>/mese</span></span><span class="chip ${costi > budAnno + 0.5 ? 'coral' : 'mint'}"><span>budget <b>${eur0(budAnno)}</b></span></span></div></div></div>
+      <div class="kpi"><div class="k">${conExtra() ? 'Utile' : 'Utile senza extra'}</div><div class="v">${sgn(utileSR)}</div><div class="s">entrate ${eur0(entSR)}</div>${conExtra() && extraTot > 0.5 ? `<div class="s">di cui extra ${eur0(extraTot)}</div>` : ''}</div>
+      <div class="kpi"><div class="k">${conExtra() ? 'Savings rate' : 'Savings rate senza extra'}</div><div class="v">${entSR > 0 ? pct(utileSR / entSR, 1) : '–'}</div><div class="s">utile / entrate</div></div></div>
       <div class="note">${att.includes(cur) && !ag[cur].ricavi.Salary ? `${meseTit(cur)} è in corso e lo stipendio non è ancora arrivato: abbassa l'utile finché non entra.` : ''}</div>`, 's5');
   // sankey annuale
   const tot = { spese: {}, ricavi: { Salary: 0, Extra: 0, 'Other Revenues': 0 }, pac: 0, invExtra: 0 };
@@ -538,7 +540,7 @@ function vistaAnno() {
   });
   const mediaSR = vals.length ? vals.reduce((s, v) => s + v, 0) / vals.length : 0;
   const cardSR = acc('asr', 'Savings rate mensile', `<span class="chip">media ${pct(mediaSR)}</span>`,
-    `<div class="seg-row">${segExtra()}</div><div class="panel">${svg(W, H3, s3)}</div>${chiave([['bar', '#9FD8B8', 'risparmio'], ['bar', '#F2A48F', 'perdita']])}<div class="note">Utile / entrate dei mesi chiusi (13ª, 14ª e bonus ${conExtra() ? 'inclusi' : 'esclusi'}). Media semplice dei mesi.</div>`, 's7');
+    `<div class="seg-row">${segExtra()}</div><div class="panel">${svg(W, H3, s3)}</div>${chiave([['bar', '#9FD8B8', 'risparmio'], ['bar', '#F2A48F', 'perdita']])}<div class="note">Utile / entrate dei mesi chiusi (extra ${conExtra() ? 'inclusi' : 'esclusi'}: 13ª, 14ª e bonus). Media semplice dei mesi.</div>`, 's7');
   // calendario annuale
   const dal = `${y}-01-01`, al = D.data_al < `${y}-12-31` ? D.data_al : `${y}-12-31`;
   const g = spesaGiorni(dal, al), maxG = 120;
