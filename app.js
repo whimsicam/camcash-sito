@@ -106,14 +106,26 @@ function fondiMese(k) {
   }
   return (_fondi[k] = out);
 }
-// budget del mese per categoria: per i fondi il disponibile (conFondi) oppure l'accantonamento del mese
-function budget(k, conFondi = true) {
+// budget del mese per categoria. Per i fondi: MAX(accantonamento del mese, spesa coperta dal fondo):
+// il fondo entra nel budget solo per la parte usata davvero; oltre il disponibile è sforamento
+function budget(k) {
   const b = Object.assign({}, D.budget[k] || {}), f = fondiMese(k);
-  for (const c in f) b[c] = conFondi ? f[c].disp : f[c].acc;
+  for (const c in f) b[c] = Math.max(f[c].acc, f[c].ut);
   return b;
 }
-// totale costi a budget (accantonamenti per i fondi); tutte = false: solo le spese di tutti i giorni
-function budgetCosti(k, tutte = true) { const b = budget(k, false); return COSTI.reduce((s, c) => s + (!tutte && escluso(c, k) ? 0 : (b[c] || 0)), 0); }
+// budget di un periodo per categoria: per i fondi la regola sui totali, MAX(Σ accantonamenti, Σ coperto), così i soldi non contano due volte
+function budgetPeriodo(mesi) {
+  const out = {};
+  for (const c of COSTI) {
+    let g = 0, acc = 0, ut = 0;
+    for (const m of mesi) { if (isFondo(c, m)) { const f = fondiMese(m)[c]; acc += f.acc; ut += f.ut; } else g += (D.budget[m] || {})[c] || 0; }
+    out[c] = g + Math.max(acc, ut);
+  }
+  return out;
+}
+const sommaB = b => COSTI.reduce((s, c) => s + (b[c] || 0), 0);
+// totale costi a budget del mese; tutte = false: solo le spese di tutti i giorni (senza viaggi e fondi)
+function budgetCosti(k, tutte = true) { const b = budget(k); return COSTI.reduce((s, c) => s + (!tutte && escluso(c, k) ? 0 : (b[c] || 0)), 0); }
 const totFondi = k => Object.values(fondiMese(k)).reduce((s, f) => ({ ut: s.ut + f.ut, acc: s.acc + f.acc, dot: s.dot + f.dot, sfin: s.sfin + f.sfin }), { ut: 0, acc: 0, dot: 0, sfin: 0 });
 
 // spese quotidiane per data effettiva (costi variabili senza viaggi), per heatmap e giorni della settimana
@@ -234,21 +246,20 @@ function acc(id, titolo, chip, body, cls = '') {
   return `<details class="card ${cls}" data-id="${id}" ${open}><summary><div class="t"><h3>${titolo}</h3></div>${chip || ''}${CHEV}</summary><div class="body">${body}</div></details>`;
 }
 
-function sintesiCategorie(a, k, conFondi = true) {
-  const b = budget(k, conFondi);
+function sintesiCategorie(a, k) {
+  const b = budget(k);
   return COSTI.map(c => ({ c, v: a.spese[c], b: b[c] || 0 })).filter(x => Math.abs(x.v) > 0.004 || x.b > 0);
 }
 
 function cardCategorie(a, k, id) {
-  const attivi = conFondiAttivi(k), conF = attivi && stato.fondi === 'con';
-  const righe = sintesiCategorie(a, k, conF);
+  const righe = sintesiCategorie(a, k);
   const tot = righe.reduce((s, r) => s + Math.max(r.v, 0), 0), btot = righe.reduce((s, r) => s + r.b, 0);
   // donut: categorie sotto il 3% raccolte in "Altre spese"
   const items = [], piccole = { c: 'Altre spese', v: 0 };
   righe.filter(r => r.v > 0).sort((x, y) => y.v - x.v).forEach(r => (r.v / tot < 0.03 ? piccole.v += r.v : items.push({ c: COLORI[r.c], v: r.v })));
   if (piccole.v > 0) items.push({ c: COLORI['Altre spese'], v: piccole.v });
-  const centro = { label: 'SPESO', big: `${num(tot, 0)}\u00A0€`, sub: btot ? pct(tot / btot) + ' del budget' : '' };
-  const tag = c => conF && isFondo(c, k) ? ' <span class="tag-f">fondo</span>' : '';
+  const res = btot - tot, centro = { label: 'SPESO', big: `${num(tot, 0)}\u00A0€`, sub: btot ? (Math.abs(res) < 0.5 ? 'in linea col budget' : `${num(Math.abs(res), 0)}\u00A0€ ${res > 0 ? 'sotto' : 'oltre'} il budget`) : '' };
+  const tag = c => isFondo(c, k) ? ' <span class="tag-f">fondo</span>' : '';
   const lista = righe.slice().sort((x, y) => y.v - x.v).map(r => {
     const d = r.v - r.b, over = r.b > 0 ? d > 0.5 : r.v > 0.5;
     return `<div class="cg"><div class="l1"><i class="dot" style="background:${COLORI[r.c]}"></i><span class="n">${esc(r.c)}${tag(r.c)}</span><span class="a">${eur0(r.v)}</span></div>
@@ -266,10 +277,10 @@ function cardCategorie(a, k, id) {
       <div class="mark" style="left:calc(${r.b > 0 ? BM : 0}% - 1px)"></div></div></div>`;
   }).join('') + `<div class="bar-key"><span><i class="mk"></i>budget</span><span><i class="sw" style="background:var(--coral)"></i>oltre il budget</span></div>`;
   const vista = (stato.vistaCat || 'donut');
-  return card(`<div class="card-head"><div><h3>Ripartizione spese</h3><div class="card-sub nowrap">Budget ${eur0(btot)}</div></div>
+  return card(`<div class="card-head"><div><h3>Ripartizione spese</h3><div class="card-sub nowrap">Budget ${eur0(btot)}${conFondiAttivi(k) ? ' · ' + pct(tot / (btot || 1)) : ''}</div></div>
     <div class="toggles"><div class="seg ico2" data-seg="vistaCat"><button data-v="donut" title="Ciambella" aria-label="Ciambella" class="${vista === 'donut' ? 'on' : ''}"><svg viewBox="0 0 24 24" class="ico"><circle cx="12" cy="12" r="7.5" stroke-width="3.2" stroke-dasharray="14 3.5"/></svg></button><button data-v="barre" title="Barre" aria-label="Barre" class="${vista === 'barre' ? 'on' : ''}"><svg viewBox="0 0 24 24" class="ico"><path d="M5 7h14M5 12h9M5 17h11" stroke-width="2.6"/></svg></button></div>
-    ${attivi ? `<div class="seg ico2" data-seg="fondi"><button data-v="senza" title="Senza fondi: budget = accantonamento del mese" aria-label="Senza fondi" class="${conF ? '' : 'on'}"><svg viewBox="0 0 24 24" class="ico"><path d="M5 11.5c0-3 3-5.5 7-5.5s7 2.5 7 5.5c0 1.8-1 3.3-2.6 4.3V19h-2.2v-1.9c-.7.2-1.4.2-2.2.2s-1.5 0-2.2-.2V19H6.6v-3.2C5.9 15 5 13.4 5 11.5z" fill="currentColor" stroke="none"/><rect x="10" y="3.4" width="4" height="2.6" rx="1" fill="currentColor" stroke="none"/><path d="M3.5 20.5 20.5 3.5" stroke-width="2.4" stroke="#fff"/><path d="M3.5 20.5 20.5 3.5" stroke-width="1.6"/></svg></button><button data-v="con" title="Con fondi: budget = quanto c'è nel fondo" aria-label="Con fondi" class="${conF ? 'on' : ''}"><svg viewBox="0 0 24 24" class="ico"><path d="M5 11.5c0-3 3-5.5 7-5.5s7 2.5 7 5.5c0 1.8-1 3.3-2.6 4.3V19h-2.2v-1.9c-.7.2-1.4.2-2.2.2s-1.5 0-2.2-.2V19H6.6v-3.2C5.9 15 5 13.4 5 11.5z" fill="currentColor" stroke="none"/><rect x="10" y="3.4" width="4" height="2.6" rx="1" fill="currentColor" stroke="none"/></svg></button></div>` : ''}</div></div>
-    ${vista === 'donut' ? `<div class="donut-wrap">${donut(items, centro)}</div><div class="cat-grid">${lista}</div>` : `<div class="bars-list">${barre}</div>`}`, 's7');
+    </div></div>
+    ${vista === 'donut' ? `<div class="donut-wrap">${donut(items, centro)}</div><div class="cat-grid">${lista}</div>` : `<div class="bars-list">${barre}</div>`}${conFondiAttivi(k) ? `<div class="note">Fondi: budget = accantonamento del mese, o quanto il fondo copre se lo usi. Oltre il fondo è sforamento.</div>` : ''}`, 's7');
 }
 
 const notaEscl = k => conFondiAttivi(k) ? 'Budget delle spese di tutti i giorni: esclusi i fondi (viaggi, shopping, salute, regali).' : 'Viaggi esclusi dal budget (Fondo viaggi).';
@@ -293,7 +304,7 @@ function cardRitmo(a, info, id) {
 }
 
 function destinazioni(a, k, aperto) {
-  const b = budget(k, true);
+  const b = budget(k);
   const cats = COSTI.map(c => ({ c, v: a.spese[c] })).filter(x => x.v > 0.5).sort((x, y) => y.v - x.v);
   const top = cats.slice(0, 5), resto = cats.slice(5).reduce((s, x) => s + x.v, 0);
   const dest = top.map(x => ({ l: x.c, v: x.v, c: COLORI[x.c], over: (b[x.c] || 0) > 0 && x.v > (b[x.c] || 0) + 0.5 ? x.v - b[x.c] : 0 }));
@@ -461,13 +472,13 @@ function vistaConfronto() {
       <div class="kpi"><div class="v">${eur(totC)}</div></div></div>
       <span class="chip ${dT > 0 ? 'coral' : 'mint'}">${dT > 0 ? '▲' : '▼'} ${sgn(dT)}${totR ? ' (' + (dT > 0 ? '+' : '') + num(dT / totR * 100, 1) + '%)' : ''}</span></div>
     <div class="vs"><div><div class="k">${meseTit(k)}</div><div class="v">${eur0(totC)}</div></div><div><div class="k">${rifNome[0].toUpperCase() + rifNome.slice(1)}</div><div class="v">${eur0(totR)}</div></div></div>
-    <div class="note">${g < info.n ? `Confronto a parità di giorni (1–${g})` : 'Confronto tra mesi interi'}, viaggi inclusi.</div>`, 's5');
+    <div class="note">${g < info.n ? `Confronto a parità di giorni (1–${g})` : 'Confronto tra mesi interi'}, viaggi inclusi.${conFondiAttivi(k) ? ' "fondo" = spesa pagata (anche) con soldi accantonati.' : ''}</div>`, 's5');
   const righe = COSTI.map(c => ({ c, a: cur.spese[c], r: media(x => x.spese[c]) })).filter(x => Math.abs(x.a) > 0.5 || Math.abs(x.r) > 0.5);
   righe.forEach(x => x.d = x.a - x.r);
   const maxD = Math.max(...righe.map(x => Math.abs(x.d)), 1);
   const div = righe.slice().sort((x, y) => y.d - x.d).map(x => {
     const w = Math.abs(x.d) / maxD * 50, cls = x.d > 0 ? 'coral' : 'mint';
-    return `<div class="div-row"><div class="top"><span>${esc(x.c)}</span><span class="v ${Math.abs(x.d) < 0.5 ? '' : cls}">${sgn(x.d)}</span></div>
+    return `<div class="div-row"><div class="top"><span>${esc(x.c)}${isFondo(x.c, k) && (fondiMese(k)[x.c] || {}).ut > 0.5 ? ' <span class="tag-f">fondo</span>' : ''}</span><span class="v ${Math.abs(x.d) < 0.5 ? '' : cls}">${sgn(x.d)}</span></div>
       <div class="div-track"><div class="axis"></div><div class="f" style="${x.d > 0 ? `left:50%;width:${w}%;background:var(--coral)` : `left:${50 - w}%;width:${w}%;background:var(--mint)`}"></div></div></div>`;
   }).join('');
   const piu = righe.filter(x => x.d > 0.5).length, meno = righe.filter(x => x.d < -0.5).length;
@@ -482,7 +493,7 @@ function vistaConfronto() {
     `<div class="panel" data-w="crit">${ritmo(larghezza('[data-w="crit"]') - 28, n, ptsCur, 0, { rif: ptsRif, etichetta: `${g} · ${num(c, 0)} €` })}</div>
      ${chiave([['linea', '', meseTit(k)], ['linea', '#C3A6EE', rifNome[0].toUpperCase() + rifNome.slice(1)]])}<div class="note">Spesa cumulata senza viaggi.</div>`, 's5');
   const maxP = Math.max(...righe.map(x => Math.max(x.a, x.r)), 1);
-  const pair = righe.slice().sort((x, y) => y.a - x.a).map(x => `<div class="pair"><div class="bar-row"><div class="top"><span>${esc(x.c)}</span><span class="v">${eur0(x.a)} <small>vs ${eur0(x.r)}</small></span></div></div>
+  const pair = righe.slice().sort((x, y) => y.a - x.a).map(x => `<div class="pair"><div class="bar-row"><div class="top"><span>${esc(x.c)}${isFondo(x.c, k) && (fondiMese(k)[x.c] || {}).ut > 0.5 ? ' <span class="tag-f">fondo</span>' : ''}</span><span class="v">${eur0(x.a)} <small>vs ${eur0(x.r)}</small></span></div></div>
       <div class="tr"><i style="width:${Math.max(x.a, 0) / maxP * 100}%;background:${COLORI[x.c]}"></i></div><div class="tr"><i style="width:${Math.max(x.r, 0) / maxP * 100}%;background:#D9D4CB"></i></div></div>`).join('');
   const cardPair = acc('cpair', 'Categorie a confronto', `<span class="chip">${righe.length} categorie</span>`,
     `<div class="panel"><div class="bars-list" style="margin-top:0">${pair}</div></div>${chiave([['bar', '#B8C0EC', meseTit(k)], ['bar', '#D9D4CB', rifNome[0].toUpperCase() + rifNome.slice(1)]])}`, 's7');
@@ -499,7 +510,7 @@ function vistaAnno() {
   const ag = Object.fromEntries(mesi.map(m => [m, att.includes(m) ? agg(m, infoMese(m).fino) : null]));
   const somma = f => att.reduce((s, m) => s + f(ag[m]), 0);
   const costi = somma(a => a.costi), entrate = somma(a => a.entrate), utile = entrate - costi;
-  const budAnno = att.reduce((s, m) => s + budgetCosti(m), 0);
+  const budAnno = sommaB(budgetPeriodo(att));
   const entSR = somma(entrateSR), utileSR = entSR - costi, extraTot = somma(a => a.ricavi.Extra);
   const cur = meseDi(OGGI), chiusi = att.filter(m => m !== cur && infoMese(m).chiuso);
   const periodo = `${MESI_B[ymd(att[0])[1] - 1]}–${MESI_B[ymd(att[att.length - 1])[1] - 1]}`;
@@ -517,7 +528,7 @@ function vistaAnno() {
   tot.pac = somma(a => a.pac); tot.invExtra = somma(a => a.invExtra);
   let ent = entrate;
   const dest = COSTI.map(c => ({ c, v: tot.spese[c] })).filter(x => x.v > 0.5).sort((a, b) => b.v - a.v);
-  const bAnno = c => att.reduce((s, m) => s + (budget(m, false)[c] || 0), 0);
+  const bPer = budgetPeriodo(att), bAnno = c => bPer[c] || 0;
   const ds = dest.slice(0, 5).map(x => ({ l: x.c, v: x.v, c: COLORI[x.c], over: x.v > bAnno(x.c) + 0.5 ? x.v - bAnno(x.c) : 0 }));
   const resto = dest.slice(5).reduce((s, x) => s + x.v, 0);
   if (resto > 0.5) ds.push({ l: 'Altre spese', v: resto, c: COLORI['Altre spese'] });
@@ -552,11 +563,11 @@ function vistaAnno() {
   });
   const legCat = COSTI.filter(c => att.some(m => ag[m].spese[c] > 0)).map(c => `<div><i class="dot" style="background:${COLORI[c]}"></i><span class="n">${esc(c)}</span></div>`).join('');
   const cardBar = acc('abar', 'Spese per mese', `<span class="chip">media ${num(costi / att.length, 0)} €</span>`,
-    `<div class="panel" data-w="abar">${svg(W, H, sb)}</div><div class="legend">${legCat}</div>${chiave([['trattino', '', 'budget del mese (fondi: accantonamento)']])}`, 's7');
+    `<div class="panel" data-w="abar">${svg(W, H, sb)}</div><div class="legend">${legCat}</div>${chiave([['trattino', '', 'budget del mese']])}`, 's7');
   // cumulata vs budget
   const H2 = 180, pT2 = 22, pB2 = 22;
   let cA = 0, cB = 0; const pa = [], pb = [];
-  mesi.forEach((m, i) => { cB += budgetCosti(m); pb.push([i, cB]); if (ag[m]) { cA += ag[m].costi; pa.push([i, cA]); } });
+  mesi.forEach((m, i) => { cB = sommaB(budgetPeriodo(mesi.slice(0, i + 1))); pb.push([i, cB]); if (ag[m]) { cA += ag[m].costi; pa.push([i, cA]); } });
   const mx = cB * 1.06, X2 = i => 6 + i / 11 * (W - 12), Y2 = v => pT2 + (1 - v / mx) * (H2 - pT2 - pB2);
   const diffC = cA - pb[pa.length - 1][1];
   let s2 = `<polyline points="${pb.map(p => `${X2(p[0])},${Y2(p[1])}`).join(' ')}" fill="none" stroke="#8B867D" stroke-width="2" stroke-dasharray="5 6"/>
@@ -565,7 +576,7 @@ function vistaAnno() {
   s2 += `<text x="${X2(11)}" y="${Y2(cB) - 8}" text-anchor="end" class="lbl">budget anno ${num(cB, 0)} €</text>`;
   mesi.forEach((m, i) => s2 += `<text x="${X2(i)}" y="${H2 - 4}" text-anchor="middle" class="lbl">${MESI_B[i][0]}</text>`);
   const cardCum = acc('acum', 'Spesa cumulata vs budget', `<span class="chip ${diffC > 0 ? 'coral' : 'mint'}">${num(Math.abs(diffC), 0)} € ${diffC > 0 ? 'sopra' : 'sotto'}</span>`,
-    `<div class="panel">${svg(W, H2, s2)}</div>${chiave([['linea', '', 'spese cumulate'], ['tratt', '', 'budget cumulato']])}<div class="note">Viaggi inclusi; per i fondi il budget è l'accantonamento. Il budget è stato fissato a ottobre: per i mesi prima è un metro di paragone, non un impegno preso allora.</div>`, 's5');
+    `<div class="panel">${svg(W, H2, s2)}</div>${chiave([['linea', '', 'spese cumulate'], ['tratt', '', 'budget cumulato']])}<div class="note">Viaggi inclusi; per i fondi il budget sono gli accantonamenti, o quanto il fondo ha coperto se di più. Il budget è stato fissato a ottobre: per i mesi prima è un metro di paragone, non un impegno preso allora.</div>`, 's5');
   // savings rate mensile
   const sr = mesi.map(m => (ag[m] && chiusi.includes(m) && entrateSR(ag[m]) > 0) ? (entrateSR(ag[m]) - ag[m].costi) / entrateSR(ag[m]) : null);
   const vals = sr.filter(v => v !== null), mxS = Math.max(0.1, ...vals), mnS = Math.min(0, ...vals);
@@ -628,7 +639,7 @@ function renderAsk() {
   if (!(imp > 0) || !stato.askCat) { out.innerHTML = '<div class="hint">Scegli importo e categoria.</div>'; return; }
   const k = meseDi(OGGI), info = infoMese(k), cat = stato.askCat;
   const tre = [sposta(k, -2), sposta(k, -1), k];
-  const spesoM = info.importato ? agg(k, info.fino).spese[cat] : 0, budM = budget(k)[cat] || 0;
+  const spesoM = info.importato ? agg(k, info.fino).spese[cat] : 0, budM = isFondo(cat, k) ? fondiMese(k)[cat].disp : (budget(k)[cat] || 0);
   const spes3 = tre.reduce((s, m) => s + (infoMese(m).importato ? agg(m, infoMese(m).fino).spese[cat] : 0), 0), bud3 = tre.reduce((s, m) => s + (budget(m)[cat] || 0), 0);
   const restM = budM - spesoM, rest3 = bud3 - spes3, dopoM = restM - imp, dopo3 = rest3 - imp;
   let v, tit, txt;

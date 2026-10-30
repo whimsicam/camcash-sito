@@ -49,6 +49,19 @@ function frRecord(r, quando) {
   return { t: 'coppa', p: 22, x: `Il giorno più caro ${quando}: ${b(`${wd} ${g} ${MESI[m - 1]}`)}, ${b(e0(r.v))}${dett ? ` (${dett}${r.cats.length > 2 ? '…' : ''})` : ''}.` };
 }
 
+// ---- fondi cumulabili: sforamenti, fondo quasi vuoto, spese coperte, fondo al tetto
+function regoleFondi(k, chiuso) {
+  const out = [], f = fondiMese(k), nome = meseNome(k);
+  for (const [c, x] of Object.entries(f)) {
+    const tetto = D.fondi.voci[c].tetto, resta = x.disp - x.ut, griglia = (D.budget[k] || {})[c] || 0;
+    if (x.sf > 0.5) out.push({ t: chiuso ? 'over' : 'stop', p: 105, x: `${b(c)}: ${e0(x.sp)} spesi e nel fondo c'erano ${e0(x.disp)}. I ${e0(x.sf)} in più sono sforamento di ${nome} e pesano sul budget del mese.` });
+    else if (x.ut > x.acc + 0.5 && resta < Math.max(30, tetto * 0.15)) out.push({ t: chiuso ? 'info' : 'slow', p: 72, x: `Fondo ${b(c)} quasi vuoto: ${e0(x.ut)} usati ${chiuso ? 'a ' + nome : 'questo mese'}, restano ${e0(resta)}. Oltre, ogni spesa è sforamento.` });
+    else if (x.ut > x.acc + 0.5) out.push({ t: 'info', p: 45, x: `${b(c)}: ${e0(x.ut)} pagati dal fondo${chiuso ? ' a ' + nome : ''}, quindi dentro il budget. Nel fondo restano ${e0(resta)}.` });
+    if (!chiuso && griglia - x.acc > 0.5 && x.si + x.dot >= tetto - 0.5) out.push({ t: 'info', p: 28, x: `Fondo ${b(c)} pieno (${e0(tetto)}): questo mese non accantoni, i ${e0(griglia - x.acc)} previsti restano liberi.` });
+  }
+  return out;
+}
+
 // ---- regole sul mese in corso (k con dati fino al giorno `fino`)
 function regoleMese(k, info) {
   const out = [], a = agg(k, info.fino), bud = budget(k), n = info.n, f = info.fino, frac = f / n, resto = n - f;
@@ -69,6 +82,7 @@ function regoleMese(k, info) {
       out.push({ t: 'margine', p: 35 + (bb - s) / 10, x: `${b(c)}: ${e0(s)} su ${e0(bb)}. Restano ${e0(bb - s)} per ${gg(resto)}, se ti serve hai margine.` });
     }
   }
+  out.push(...regoleFondi(k, false));
   const marg = out.filter(r => r.t === 'margine');
   if (marg.length > 2) marg.slice(2).forEach(r => out.splice(out.indexOf(r), 1));
   // ritmo complessivo delle spese variabili
@@ -154,6 +168,7 @@ function regoleMesePrima(k) {
   const rec = giornoRecord(`${m}-01`, `${m}-31`);
   if (rec) out.push(Object.assign(frRecord(rec, `di ${meseNome(m)}`), { p: 55 }));
   if (sotto.length) out.push({ t: 'ok', p: 60, x: `Sotto budget: ${sotto.slice(0, 4).map(c => b(c)).join(', ')}.` });
+  out.push(...regoleFondi(m, true));
   return out;
 }
 function regoleInizio(k) {
@@ -162,6 +177,8 @@ function regoleInizio(k) {
   if (vb > 0) out.push({ t: 'info', p: 75, x: `Budget di ${meseNome(k)}: ${e0(budgetCosti(k))} in tutto, di cui ${e0(vb)} di spese variabili, circa ${e0(vb / n)} al giorno.` });
   // voci con budget diverso dal solito questo mese
   const prev = mesiChiusiPrima(k, 1)[0], speciali = prev ? VM.filter(c => Math.abs((bud[c] || 0) - (budget(prev)[c] || 0)) >= 15) : [];
+  const f = fondiMese(k);
+  if (Object.keys(f).length) out.push({ t: 'info', p: 62, x: `Nei fondi per ${meseNome(k)}: ${Object.entries(f).map(([c, x]) => `${b(c)} ${e0(x.disp)}`).join(', ')}. Li usi senza andare fuori budget.` });
   if (speciali.length) out.push({ t: 'info', p: 65, x: `Questo mese il budget cambia per ${speciali.map(c => `${b(c)} ${e0(bud[c] || 0)}`).join(', ')}.` });
   return out;
 }
