@@ -354,3 +354,10 @@ details.card.insights .body{padding:0 18px 18px}
 .ins-how[open]>summary .chev{transform:rotate(180deg)}
 .ins-how[open]>summary{margin-bottom:6px}
 .ins-vuoto{margin:4px 2px 0;font-size:14px;color:var(--ink-2)}
+
+/* fondi cumulabili */
+.tag-f{display:inline-block;margin-left:5px;padding:1px 6px;border-radius:99px;background:#E4EEFA;color:#4F6B8C;font-size:10px;font-weight:700;letter-spacing:.02em;vertical-align:1px}
+.dot.liq{background:transparent;border:1.3px dashed #A39C90;box-sizing:border-box}
+.fonti{display:flex;flex-wrap:wrap;gap:6px;margin:10px 0 2px}
+.fonti .chip.f{background:#E4EEFA;color:#3F5D80}
+.fonti .chip{background:#fff}

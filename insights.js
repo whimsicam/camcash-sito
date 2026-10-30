@@ -54,7 +54,7 @@ function regoleMese(k, info) {
   const out = [], a = agg(k, info.fino), bud = budget(k), n = info.n, f = info.fino, frac = f / n, resto = n - f;
   const nome = meseNome(k);
   let varSp = 0, varBud = 0;
-  for (const c of VARIAB) {
+  for (const c of variabiliMensili(k)) {
     const s = a.spese[c] || 0, bb = bud[c] || 0;
     varSp += s; varBud += bb;
     if (bb <= 0 && s <= 0.5) continue;
@@ -101,7 +101,7 @@ function regoleStoria(k) {
   const out = [], chiusi = mesiChiusiPrima(k, 6);
   if (!chiusi.length) return out;
   const ult = chiusi[0], a3 = chiusi.slice(0, 3), ag = Object.fromEntries(chiusi.map(m => [m, agg(m)]));
-  for (const c of VARIAB) {
+  for (const c of variabiliMensili(k)) {
     // rivedi budget: ultimi 3 mesi chiusi tutti molto sotto o tutti molto sopra
     if (a3.length === 3) {
       const sp = a3.map(m => ag[m].spese[c] || 0), bd = a3.map(m => budget(m)[c] || 0), bk = budget(k)[c] || 0;
@@ -145,11 +145,11 @@ function regoleStoria(k) {
 function regoleMesePrima(k) {
   const m = sposta(k, -1), inf = infoMese(m);
   if (!inf.importato) return [];
-  const a = agg(m, inf.fino), bud = budget(m), out = [];
-  const sopra = VARIAB.filter(c => (bud[c] || 0) > 0 && (a.spese[c] || 0) > bud[c] + 0.5).sort((x, y) => (a.spese[y] - bud[y]) - (a.spese[x] - bud[x]));
-  const sotto = VARIAB.filter(c => (bud[c] || 0) >= 30 && (a.spese[c] || 0) <= bud[c]);
-  const vs = VARIAB.reduce((s, c) => s + (a.spese[c] || 0), 0), vb = VARIAB.reduce((s, c) => s + (bud[c] || 0), 0);
-  if (vb > 0) out.push({ t: vs > vb ? 'over' : 'ok', p: 90, x: `${meseTit(m)} chiude con ${e0(vs)} di spese variabili su ${e0(vb)} di budget (viaggi esclusi): ${vs > vb ? `${e0(vs - vb)} sopra` : `${e0(vb - vs)} sotto`}${inf.chiuso ? '' : `, dati al ${inf.fino}`}.` });
+  const a = agg(m, inf.fino), bud = budget(m), out = [], VM = variabiliMensili(m);
+  const sopra = VM.filter(c => (bud[c] || 0) > 0 && (a.spese[c] || 0) > bud[c] + 0.5).sort((x, y) => (a.spese[y] - bud[y]) - (a.spese[x] - bud[x]));
+  const sotto = VM.filter(c => (bud[c] || 0) >= 30 && (a.spese[c] || 0) <= bud[c]);
+  const vs = VM.reduce((s, c) => s + (a.spese[c] || 0), 0), vb = VM.reduce((s, c) => s + (bud[c] || 0), 0);
+  if (vb > 0) out.push({ t: vs > vb ? 'over' : 'ok', p: 90, x: `${meseTit(m)} chiude con ${e0(vs)} di spese variabili su ${e0(vb)} di budget (${conFondiAttivi(m) ? 'fondi esclusi' : 'viaggi esclusi'}): ${vs > vb ? `${e0(vs - vb)} sopra` : `${e0(vb - vs)} sotto`}${inf.chiuso ? '' : `, dati al ${inf.fino}`}.` });
   if (sopra.length) out.push({ t: 'over', p: 85, x: `Sopra budget: ${sopra.slice(0, 3).map(c => `${b(c)} ${e0(a.spese[c])} su ${e0(bud[c])}`).join(', ')}.` });
   const rec = giornoRecord(`${m}-01`, `${m}-31`);
   if (rec) out.push(Object.assign(frRecord(rec, `di ${meseNome(m)}`), { p: 55 }));
@@ -157,11 +157,11 @@ function regoleMesePrima(k) {
   return out;
 }
 function regoleInizio(k) {
-  const bud = budget(k), out = [], n = giorniMese(k);
-  const vb = VARIAB.reduce((s, c) => s + (bud[c] || 0), 0);
+  const bud = budget(k), out = [], n = giorniMese(k), VM = variabiliMensili(k);
+  const vb = VM.reduce((s, c) => s + (bud[c] || 0), 0);
   if (vb > 0) out.push({ t: 'info', p: 75, x: `Budget di ${meseNome(k)}: ${e0(budgetCosti(k))} in tutto, di cui ${e0(vb)} di spese variabili, circa ${e0(vb / n)} al giorno.` });
   // voci con budget diverso dal solito questo mese
-  const prev = mesiChiusiPrima(k, 1)[0], speciali = prev ? VARIAB.filter(c => Math.abs((bud[c] || 0) - (budget(prev)[c] || 0)) >= 15) : [];
+  const prev = mesiChiusiPrima(k, 1)[0], speciali = prev ? VM.filter(c => Math.abs((bud[c] || 0) - (budget(prev)[c] || 0)) >= 15) : [];
   if (speciali.length) out.push({ t: 'info', p: 65, x: `Questo mese il budget cambia per ${speciali.map(c => `${b(c)} ${e0(bud[c] || 0)}`).join(', ')}.` });
   return out;
 }

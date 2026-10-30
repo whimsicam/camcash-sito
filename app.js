@@ -6,7 +6,7 @@ const COLORI_BASE = {
   'Housing': '#B8C0EC', 'Subscriptions': '#D4BBFC', 'Groceries': '#FDE293', 'Bar & Restaurant': '#F8B4D9',
   'Going Out': '#C3A6EE', 'Transport': '#A8DADC', 'Weekend & Travel': '#A9D4F5', 'Shopping': '#F9C9A8',
   'Health & Care': '#F3D9B1', 'Collectibles': '#C5E0B4', 'Gifts': '#F6C1C9', 'Admin': '#D9D4CB', 'Other': '#E8D5C4',
-  'Altre spese': '#E2DCD0', 'PAC': '#9FD8B8', 'Investimenti extra': '#B9E3CC', 'In liquidità': '#EFE9DD',
+  'Altre spese': '#E2DCD0', 'PAC': '#9FD8B8', 'Investimenti extra': '#B9E3CC', 'In liquidità': '#EFE9DD', 'Ai fondi': '#BFD7F2',
   'Non ancora speso': '#EFE9DD'
 };
 const EXTRA = ['#BFD7F2', '#E4D1F5', '#CDE8D9', '#FBD9A6', '#D8E4B8', '#F2CFE6', '#C9E4EC'];
@@ -54,7 +54,7 @@ let OGGI = null;             // 'YYYY-MM-DD'
 let COSTI = [], VARIAB = [];
 let stato = { tab: 'mese', confRif: 'prec', askCat: null };
 try { stato = Object.assign(stato, JSON.parse(localStorage.getItem('camcash.ui') || '{}')); } catch (e) { }
-function salvaUI() { try { localStorage.setItem('camcash.ui', JSON.stringify({ tab: stato.tab, confRif: stato.confRif, vistaCat: stato.vistaCat, viaggi: stato.viaggi, extra: stato.extra, aperti: stato.aperti || {} })); } catch (e) { } }
+function salvaUI() { try { localStorage.setItem('camcash.ui', JSON.stringify({ tab: stato.tab, confRif: stato.confRif, vistaCat: stato.vistaCat, fondi: stato.fondi, extra: stato.extra, aperti: stato.aperti || {} })); } catch (e) { } }
 
 /* ------------------------------------------------------------------ calcoli */
 // con/senza 13ª, 14ª e bonus (categoria Extra): utile e savings rate "ordinari"
@@ -77,18 +77,44 @@ function agg(k, fino = 31) {
     let g = md < k ? 1 : md > k ? n : ymd(t[0])[2];
     if (g > fino) continue;
     const [, , cat, sub, imp] = t;
-    if (cat in r.spese) { r.spese[cat] -= imp; if (cat !== WT) r.giorno[g] = (r.giorno[g] || 0) - imp; }
+    if (cat in r.spese) { r.spese[cat] -= imp; if (!escluso(cat, k)) r.giorno[g] = (r.giorno[g] || 0) - imp; }
     else if (cat in r.ricavi) r.ricavi[cat] += imp;
     else if (cat === 'Investments') { if (sub === 'PAC') r.pac -= imp; else r.invExtra -= imp; }
   }
   r.costi = COSTI.reduce((s, c) => s + r.spese[c], 0);
-  r.costiNoWT = r.costi - r.spese[WT];
+  r.costiNoWT = COSTI.reduce((s, c) => s + (escluso(c, k) ? 0 : r.spese[c]), 0);
   r.entrate = r.ricavi.Salary + r.ricavi.Extra + r.ricavi['Other Revenues'];
   r.utile = r.entrate - r.costi;
   return r;
 }
-function budget(k) { return D.budget[k] || {}; }
-function budgetCosti(k, conWT = true) { const b = budget(k); return COSTI.reduce((s, c) => s + (c === WT && !conWT ? 0 : (b[c] || 0)), 0); }
+/* fondi cumulabili (W&T, Shopping, Health & Care, Gifts dal mese di attivazione):
+   disponibile = saldo + dotazione + accantonamento (fino al tetto); spesa oltre il disponibile = sforamento del mese */
+const isFondo = (c, k) => !!(D.fondi && k >= D.fondi.dal && D.fondi.voci[c]);
+const escluso = (c, k) => c === WT || isFondo(c, k);          // fuori dal budget "di tutti i giorni"
+const conFondiAttivi = k => !!(D.fondi && k >= D.fondi.dal);
+const variabiliMensili = k => VARIAB.filter(c => !escluso(c, k));
+const _fondi = {};
+function fondiMese(k) {
+  if (!conFondiAttivi(k)) return {};
+  if (_fondi[k]) return _fondi[k];
+  const prev = k > D.fondi.dal ? fondiMese(sposta(k, -1)) : null, g = D.budget[k] || {}, a = agg(k), out = {};
+  for (const [c, v] of Object.entries(D.fondi.voci)) {
+    const si = prev ? prev[c].sfin : 0, dot = prev ? 0 : v.saldo0;
+    const acc = Math.max(0, Math.min(g[c] || 0, v.tetto - si - dot)), disp = si + dot + acc;
+    const sp = a.spese[c] || 0, ut = Math.min(sp, disp);
+    out[c] = { si, dot, acc, disp, sp, ut, sf: Math.max(0, sp - disp), sfin: disp - ut };
+  }
+  return (_fondi[k] = out);
+}
+// budget del mese per categoria: per i fondi il disponibile (conFondi) oppure l'accantonamento del mese
+function budget(k, conFondi = true) {
+  const b = Object.assign({}, D.budget[k] || {}), f = fondiMese(k);
+  for (const c in f) b[c] = conFondi ? f[c].disp : f[c].acc;
+  return b;
+}
+// totale costi a budget (accantonamenti per i fondi); tutte = false: solo le spese di tutti i giorni
+function budgetCosti(k, tutte = true) { const b = budget(k, false); return COSTI.reduce((s, c) => s + (!tutte && escluso(c, k) ? 0 : (b[c] || 0)), 0); }
+const totFondi = k => Object.values(fondiMese(k)).reduce((s, f) => ({ ut: s.ut + f.ut, acc: s.acc + f.acc, dot: s.dot + f.dot, sfin: s.sfin + f.sfin }), { ut: 0, acc: 0, dot: 0, sfin: 0 });
 
 // spese quotidiane per data effettiva (costi variabili senza viaggi), per heatmap e giorni della settimana
 function spesaGiorni(dal, al) {
@@ -137,7 +163,7 @@ function donut(items, centro, size = 230) {
 }
 
 /* sankey verticale: una barra di entrate in alto che si apre verso le destinazioni */
-function sankey(w, entrateLbl, entrate, dest) {
+function sankey(w, entrateLbl, entrate, dest, fonti) {
   const tot = dest.reduce((s, d) => s + d.v, 0) || 1;
   const pillH = 40, y0 = pillH, y1 = 186, yE = 200, gap = 6, H = yE;
   const usable = w - gap * (dest.length - 1), src = w * 0.62;
@@ -146,13 +172,14 @@ function sankey(w, entrateLbl, entrate, dest) {
     const ws = d.v / tot * src, wd = Math.max(d.v / tot * usable, 3);
     const a0 = xs, a1 = xs + ws, b0 = xd, b1 = xd + wd, ym = (y0 + y1) / 2;
     const rr = Math.min(5, (b1 - b0) / 2);
-    ribbons += `<path d="M${a0} ${y0} C${a0} ${ym} ${b0} ${ym} ${b0} ${y1} L${b0} ${yE - rr} Q${b0} ${yE} ${b0 + rr} ${yE} L${b1 - rr} ${yE} Q${b1} ${yE} ${b1} ${yE - rr} L${b1} ${y1} C${b1} ${ym} ${a1} ${ym} ${a1} ${y0} Z" fill="${d.c}"/>`;
+    ribbons += `<path d="M${a0} ${y0} C${a0} ${ym} ${b0} ${ym} ${b0} ${y1} L${b0} ${yE - rr} Q${b0} ${yE} ${b0 + rr} ${yE} L${b1 - rr} ${yE} Q${b1} ${yE} ${b1} ${yE - rr} L${b1} ${y1} C${b1} ${ym} ${a1} ${ym} ${a1} ${y0} Z" ${d.liq ? 'fill="none" stroke="#A39C90" stroke-width="1.3" stroke-dasharray="2.5 3"' : `fill="${d.c}"`}/>`;
     xs = a1; xd = b1 + gap;
   });
   const pill = `<rect x="0" y="0" width="${w}" height="${pillH}" rx="${pillH / 2}" fill="#1C1B1B"/>
     <text x="18" y="${pillH / 2 + 5}" style="font-size:14px;font-weight:700;fill:#fff">${esc(entrateLbl)}</text>
     <text x="${w - 18}" y="${pillH / 2 + 5}" text-anchor="end" style="font-size:15px;font-weight:800;fill:#fff">${num(entrate)} €</text>`;
-  const legenda = `<div class="legend flow">${dest.map(d => `<div><i class="dot" style="background:${d.c}"></i><span class="n">${esc(d.l)}${d.over ? ` <span class="chip coral sm">+${num(d.over, 0)}\u00A0€</span>` : ''}</span><span class="v">${eur0(d.v)}</span></div>`).join('')}</div>`;
+  const fon = fonti && fonti.length > 1 ? `<div class="fonti">${fonti.map(([l, v], i) => `<span class="chip ${i ? 'f' : ''}">${esc(l[0].toUpperCase() + l.slice(1))} <b>${num(v, 0)}\u00A0€</b></span>`).join('')}</div>` : '';
+  const legenda = fon + `<div class="legend flow">${dest.map(d => `<div><i class="dot ${d.liq ? 'liq' : ''}" style="${d.liq ? '' : `background:${d.c}`}"></i><span class="n">${esc(d.l)}${d.over ? ` <span class="chip coral sm">+${num(d.over, 0)}\u00A0€</span>` : ''}</span><span class="v">${eur0(d.v)}</span></div>`).join('')}</div>`;
   return svg(w, H, ribbons + nodes + pill) + legenda;
 }
 
@@ -193,6 +220,7 @@ function chiave(voci) {
     if (t === 'tacca') return `<svg width="10" height="12"><line x1="5" y1="1" x2="5" y2="11" stroke="${st}" stroke-width="2.5" stroke-linecap="round"/></svg>`;
     if (t === 'trattino') return `<svg width="16" height="10"><line x1="2" y1="5" x2="14" y2="5" stroke="${st}" stroke-width="2.4" stroke-linecap="round"/></svg>`;
     if (t === 'chip') return `<span class="chip coral sm">+€</span>`;
+    if (t === 'liq') return `<i class="dot liq"></i>`;
     return `<i style="display:inline-block;width:16px;height:8px;border-radius:99px;background:${c}"></i>`;
   };
   return `<div class="key">${voci.map(([t, c, l]) => `<span>${sym(t, c)}${l}</span>`).join('')}</div>`;
@@ -206,23 +234,24 @@ function acc(id, titolo, chip, body, cls = '') {
   return `<details class="card ${cls}" data-id="${id}" ${open}><summary><div class="t"><h3>${titolo}</h3></div>${chip || ''}${CHEV}</summary><div class="body">${body}</div></details>`;
 }
 
-function sintesiCategorie(a, k) {
-  const b = budget(k);
+function sintesiCategorie(a, k, conFondi = true) {
+  const b = budget(k, conFondi);
   return COSTI.map(c => ({ c, v: a.spese[c], b: b[c] || 0 })).filter(x => Math.abs(x.v) > 0.004 || x.b > 0);
 }
 
 function cardCategorie(a, k, id) {
-  const conV = stato.viaggi === 'con';
-  const righe = sintesiCategorie(a, k).filter(r => conV || r.c !== WT);
+  const attivi = conFondiAttivi(k), conF = attivi && stato.fondi === 'con';
+  const righe = sintesiCategorie(a, k, conF);
   const tot = righe.reduce((s, r) => s + Math.max(r.v, 0), 0), btot = righe.reduce((s, r) => s + r.b, 0);
   // donut: categorie sotto il 3% raccolte in "Altre spese"
   const items = [], piccole = { c: 'Altre spese', v: 0 };
   righe.filter(r => r.v > 0).sort((x, y) => y.v - x.v).forEach(r => (r.v / tot < 0.03 ? piccole.v += r.v : items.push({ c: COLORI[r.c], v: r.v })));
   if (piccole.v > 0) items.push({ c: COLORI['Altre spese'], v: piccole.v });
   const centro = { label: 'SPESO', big: `${num(tot, 0)}\u00A0€`, sub: btot ? pct(tot / btot) + ' del budget' : '' };
+  const tag = c => conF && isFondo(c, k) ? ' <span class="tag-f">fondo</span>' : '';
   const lista = righe.slice().sort((x, y) => y.v - x.v).map(r => {
     const d = r.v - r.b, over = r.b > 0 ? d > 0.5 : r.v > 0.5;
-    return `<div class="cg"><div class="l1"><i class="dot" style="background:${COLORI[r.c]}"></i><span class="n">${esc(r.c)}</span><span class="a">${eur0(r.v)}</span></div>
+    return `<div class="cg"><div class="l1"><i class="dot" style="background:${COLORI[r.c]}"></i><span class="n">${esc(r.c)}${tag(r.c)}</span><span class="a">${eur0(r.v)}</span></div>
       <div class="l2">${over ? `<span class="chip coral sm">+${num(d, 0)} €</span>` : '<span></span>'}<small>su ${eur0(r.b)}</small></div></div>`;
   }).join('');
   const BM = 70; // posizione della tacca del budget (% della larghezza), uguale per tutte
@@ -231,18 +260,19 @@ function cardCategorie(a, k, id) {
     let dentro, fuori;
     if (r.b > 0) { dentro = Math.min(v, r.b) / r.b * BM; fuori = over > 0 ? Math.min(over / r.b * BM, 100 - BM) : 0; }
     else { dentro = 0; fuori = v > 0 ? Math.min(v / 100 * BM, 100) : 0; }
-    return `<div class="bar-row"><div class="top"><span>${esc(r.c)}</span><span class="v">${over > 0.5 ? `<span class="chip coral sm">+${num(over, 0)} €</span> ` : ''}${eur0(r.v)} <small>/ ${eur0(r.b)}</small></span></div>
+    return `<div class="bar-row"><div class="top"><span>${esc(r.c)}${tag(r.c)}</span><span class="v">${over > 0.5 ? `<span class="chip coral sm">+${num(over, 0)} €</span> ` : ''}${eur0(r.v)} <small>/ ${eur0(r.b)}</small></span></div>
       <div class="bar-track">${dentro ? `<div class="fill" style="width:${dentro}%;background:${COLORI[r.c]}"></div>` : ''}
       ${fuori ? `<div class="fill over" style="left:${r.b > 0 ? BM : 0}%;width:${fuori}%"></div>` : ''}
       <div class="mark" style="left:calc(${r.b > 0 ? BM : 0}% - 1px)"></div></div></div>`;
   }).join('') + `<div class="bar-key"><span><i class="mk"></i>budget</span><span><i class="sw" style="background:var(--coral)"></i>oltre il budget</span></div>`;
   const vista = (stato.vistaCat || 'donut');
-  return card(`<div class="card-head"><div><h3>Ripartizione spese</h3><div class="card-sub nowrap">Budget ${eur0(btot)} · ${conV ? 'con' : 'senza'} viaggi</div></div>
+  return card(`<div class="card-head"><div><h3>Ripartizione spese</h3><div class="card-sub nowrap">Budget ${eur0(btot)}</div></div>
     <div class="toggles"><div class="seg ico2" data-seg="vistaCat"><button data-v="donut" title="Ciambella" aria-label="Ciambella" class="${vista === 'donut' ? 'on' : ''}"><svg viewBox="0 0 24 24" class="ico"><circle cx="12" cy="12" r="7.5" stroke-width="3.2" stroke-dasharray="14 3.5"/></svg></button><button data-v="barre" title="Barre" aria-label="Barre" class="${vista === 'barre' ? 'on' : ''}"><svg viewBox="0 0 24 24" class="ico"><path d="M5 7h14M5 12h9M5 17h11" stroke-width="2.6"/></svg></button></div>
-    <div class="seg ico2" data-seg="viaggi"><button data-v="senza" title="Senza viaggi" aria-label="Senza viaggi" class="${conV ? '' : 'on'}"><svg viewBox="0 0 24 24" class="ico"><path d="M21 16v-2l-8-5V3.5c0-.83-.67-1.5-1.5-1.5S10 2.67 10 3.5V9l-8 5v2l8-2.5V19l-2 1.5V22l3.5-1 3.5 1v-1.5L13 19v-5.5l8 2.5z" fill="currentColor" stroke="none"/><path d="M3.5 20.5 20.5 3.5" stroke-width="2.4" stroke="#fff" /><path d="M3.5 20.5 20.5 3.5" stroke-width="1.6"/></svg></button><button data-v="con" title="Con viaggi" aria-label="Con viaggi" class="${conV ? 'on' : ''}"><svg viewBox="0 0 24 24" class="ico"><path d="M21 16v-2l-8-5V3.5c0-.83-.67-1.5-1.5-1.5S10 2.67 10 3.5V9l-8 5v2l8-2.5V19l-2 1.5V22l3.5-1 3.5 1v-1.5L13 19v-5.5l8 2.5z" fill="currentColor" stroke="none"/></svg></button></div></div></div>
+    ${attivi ? `<div class="seg ico2" data-seg="fondi"><button data-v="senza" title="Senza fondi: budget = accantonamento del mese" aria-label="Senza fondi" class="${conF ? '' : 'on'}"><svg viewBox="0 0 24 24" class="ico"><path d="M5 11.5c0-3 3-5.5 7-5.5s7 2.5 7 5.5c0 1.8-1 3.3-2.6 4.3V19h-2.2v-1.9c-.7.2-1.4.2-2.2.2s-1.5 0-2.2-.2V19H6.6v-3.2C5.9 15 5 13.4 5 11.5z" fill="currentColor" stroke="none"/><rect x="10" y="3.4" width="4" height="2.6" rx="1" fill="currentColor" stroke="none"/><path d="M3.5 20.5 20.5 3.5" stroke-width="2.4" stroke="#fff"/><path d="M3.5 20.5 20.5 3.5" stroke-width="1.6"/></svg></button><button data-v="con" title="Con fondi: budget = quanto c'è nel fondo" aria-label="Con fondi" class="${conF ? 'on' : ''}"><svg viewBox="0 0 24 24" class="ico"><path d="M5 11.5c0-3 3-5.5 7-5.5s7 2.5 7 5.5c0 1.8-1 3.3-2.6 4.3V19h-2.2v-1.9c-.7.2-1.4.2-2.2.2s-1.5 0-2.2-.2V19H6.6v-3.2C5.9 15 5 13.4 5 11.5z" fill="currentColor" stroke="none"/><rect x="10" y="3.4" width="4" height="2.6" rx="1" fill="currentColor" stroke="none"/></svg></button></div>` : ''}</div></div>
     ${vista === 'donut' ? `<div class="donut-wrap">${donut(items, centro)}</div><div class="cat-grid">${lista}</div>` : `<div class="bars-list">${barre}</div>`}`, 's7');
 }
 
+const notaEscl = k => conFondiAttivi(k) ? 'Budget delle spese di tutti i giorni: esclusi i fondi (viaggi, shopping, salute, regali).' : 'Viaggi esclusi dal budget (Fondo viaggi).';
 function datiRitmo(a, info) {
   const pts = []; let c = 0;
   for (let g = 1; g <= info.fino; g++) {
@@ -259,11 +289,11 @@ function cardRitmo(a, info, id) {
   const chip = info.fino ? `<span class="chip ${diff > 0 ? 'coral' : 'mint'}">${diff > 0 ? '+' : '−'}${num(Math.abs(diff), 0)} € ${diff > 0 ? 'sopra il ritmo' : 'sotto il ritmo'}</span>` : '';
   return acc(id, 'Ritmo di spesa', chip,
     `<div class="panel" data-w="${id}">${ritmo(larghezza(`[data-w="${id}"]`) - 28, info.n, pts, bud, { etichetta: info.fino ? `${info.fino} ${MESI_B[ymd(info.k)[1] - 1].toLowerCase()} · ${num(speso, 0)} €` : '' })}</div>
-     ${chiave([['linea', '', 'spesa cumulata'], ['tratt', '', 'budget del mese']])}<div class="note">Viaggi esclusi (Fondo viaggi).</div>`, 's5');
+     ${chiave([['linea', '', 'spesa cumulata'], ['tratt', '', 'budget del mese']])}<div class="note">${notaEscl(info.k)}</div>`, 's5');
 }
 
 function destinazioni(a, k, aperto) {
-  const b = budget(k);
+  const b = budget(k, true);
   const cats = COSTI.map(c => ({ c, v: a.spese[c] })).filter(x => x.v > 0.5).sort((x, y) => y.v - x.v);
   const top = cats.slice(0, 5), resto = cats.slice(5).reduce((s, x) => s + x.v, 0);
   const dest = top.map(x => ({ l: x.c, v: x.v, c: COLORI[x.c], over: (b[x.c] || 0) > 0 && x.v > (b[x.c] || 0) + 0.5 ? x.v - b[x.c] : 0 }));
@@ -273,6 +303,7 @@ function destinazioni(a, k, aperto) {
   return dest;
 }
 
+const notaFlusso = tf => (tf.ut > 0.5 ? '"Dai fondi" sono spese pagate con soldi già accantonati. ' : '') + (tf.dot > 0.5 ? `La dotazione iniziale ai fondi (${num(tf.dot, 0)} €) viene dalla liquidità e non è nel grafico. ` : '');
 function cardFlusso(a, info, id, titoloPeriodo) {
   let entrate = a.entrate, lbl = 'Entrate', atteso = false;
   const comp = [];
@@ -280,15 +311,19 @@ function cardFlusso(a, info, id, titoloPeriodo) {
   if (info.corrente && a.ricavi.Salary <= 0 && D.stipendio_atteso) { entrate += D.stipendio_atteso; atteso = true; comp.unshift('stipendio atteso'); }
   if (comp.length === 1) lbl = comp[0][0].toUpperCase() + comp[0].slice(1);
   const dest = destinazioni(a, info.k);
+  const tf = totFondi(info.k);
+  if (tf.acc > 0.5) dest.push({ l: 'Ai fondi', v: tf.acc, c: COLORI['Ai fondi'] });
   const usciti = dest.reduce((s, d) => s + d.v, 0);
+  const fonti = [[lbl, entrate]];
+  if (tf.ut > 0.5) { fonti.push(['Dai fondi', tf.ut]); entrate += tf.ut; lbl = lbl + ' + fondi'; }
   const resto = entrate - usciti;
   let chip;
-  if (resto >= 0.5) { dest.push({ l: info.corrente ? 'Non ancora speso' : 'In liquidità', v: resto, c: COLORI['In liquidità'] }); chip = `<span class="chip mint">${num(resto, 0)} € ${info.corrente ? 'non spesi' : 'in liquidità'}</span>`; }
-  else { entrate = usciti; lbl = comp.length === 1 ? lbl + ' + liquidità' : 'Entrate + liquidità'; chip = `<span class="chip coral">${num(-resto, 0)} € dalla liquidità</span>`; }
+  if (resto >= 0.5) { dest.push({ l: info.corrente ? 'Non ancora speso' : 'In liquidità', v: resto, c: COLORI['In liquidità'], liq: true }); chip = `<span class="chip mint">${num(resto, 0)} € ${info.corrente ? 'non spesi' : 'in liquidità'}</span>`; }
+  else { entrate = usciti; fonti.push(['Dalla liquidità', -resto]); lbl = comp.length === 1 && tf.ut <= 0.5 ? lbl + ' + liquidità' : 'Entrate + liquidità'; chip = `<span class="chip coral">${num(-resto, 0)} € dalla liquidità</span>`; }
   const w = larghezza(`[data-w="${id}"]`) - 28;
   return acc(id, 'Dove vanno i soldi', chip,
-    `<div class="panel" data-w="${id}">${sankey(w, lbl, entrate, dest)}</div>
-     <div class="note">${atteso ? 'Lo stipendio del mese non è ancora arrivato: uso quello atteso (' + num(D.stipendio_atteso, 0) + ' €). ' : ''}Le prime 5 categorie per spesa, le altre raccolte in "Altre spese".</div>${chiave([['chip', '', 'quanto la categoria è sopra budget']])}`, 's7');
+    `<div class="panel" data-w="${id}">${sankey(w, lbl, entrate, dest, fonti)}</div>
+     <div class="note">${atteso ? 'Lo stipendio del mese non è ancora arrivato: uso quello atteso (' + num(D.stipendio_atteso, 0) + ' €). ' : ''}${notaFlusso(tf)}Le prime 5 categorie per spesa, le altre raccolte in "Altre spese".</div>${chiave([['chip', '', 'quanto la categoria è sopra budget'], ['liq', '', 'in liquidità']])}`, 's7');
 }
 
 function colore(v, max) {
@@ -344,15 +379,15 @@ const chipDati = () => `<span class="chip">dati al ${D.data_al.split('-').revers
 function soldiMese(a, info) {
   let ent = a.entrate, att = false;
   if (info.corrente && a.ricavi.Salary <= 0 && D.stipendio_atteso) { ent += D.stipendio_atteso; att = true; }
-  const sp = Math.max(a.costi, 0), inv = Math.max(a.pac, 0) + Math.max(a.invExtra, 0);
-  const resto = ent - sp - inv, tot = Math.max(ent, sp + inv) || 1;
+  const sp = Math.max(a.costi, 0), inv = Math.max(a.pac, 0) + Math.max(a.invExtra, 0), tf = totFondi(info.k);
+  const resto = ent + tf.ut - sp - inv - tf.acc;
   const invLbl = a.invExtra > 0.5 ? 'Investito' : 'PAC';
   const extra = a.ricavi.Extra > 0.5 ? `<div class="k">di cui extra ${eur0(a.ricavi.Extra)}</div>` : '';
   const seg = (v, c) => v > 0.5 ? `<i style="flex:${v};background:${c}"></i>` : '';
   return `<div class="duo"><div><div class="k">Entrate</div><div class="v in ${att ? 'att' : ''}">${eur0(ent)}${att ? ' <small>attesi</small>' : ''}</div>${extra}</div>
-      <div><div class="k">Spese</div><div class="v out">${eur0(sp)}</div></div></div>
-    <div class="sbar ${att ? 'dashed' : ''}">${seg(sp, 'var(--ink)')}${seg(inv, '#9FD8B8')}${seg(Math.max(resto, 0), '#EFE9DD')}</div>
-    <div class="sleg"><span><i class="dot" style="background:var(--ink)"></i>Spese <b>${eur0(sp)}</b></span>${inv > 0.5 ? `<span><i class="dot" style="background:#9FD8B8"></i>${invLbl} <b>${eur0(inv)}</b></span>` : ''}
+      <div><div class="k">Spese</div><div class="v out">${eur0(sp)}</div>${tf.ut > 0.5 ? `<div class="k">di cui dai fondi ${eur0(tf.ut)}</div>` : ''}</div></div>
+    <div class="sbar ${att ? 'dashed' : ''}">${seg(sp, 'var(--ink)')}${seg(inv, '#9FD8B8')}${seg(tf.acc, COLORI['Ai fondi'])}${seg(Math.max(resto, 0), '#EFE9DD')}</div>
+    <div class="sleg"><span><i class="dot" style="background:var(--ink)"></i>Spese <b>${eur0(sp)}</b></span>${inv > 0.5 ? `<span><i class="dot" style="background:#9FD8B8"></i>${invLbl} <b>${eur0(inv)}</b></span>` : ''}${tf.acc > 0.5 ? `<span><i class="dot" style="background:${COLORI['Ai fondi']}"></i>Ai fondi <b>${eur0(tf.acc)}</b></span>` : ''}
       ${resto >= 0 ? `<span><i class="dot" style="background:#E2DCD0"></i>${info.corrente ? 'Restano' : 'In liquidità'} <b>${eur0(resto)}</b></span>` : `<span class="neg">Dalla liquidità <b>${eur0(-resto)}</b></span>`}</div>`;
 }
 
@@ -389,7 +424,7 @@ function vistaMese(k, chiusoForzato) {
       <div class="big ${resta < 0 ? 'neg' : ''}">${ii}<span class="dec">,${dd} €</span></div>
       <div class="line">budget ${eur0(bud)} · ${quando}</div>
       ${soldiMese(a, info)}
-      <div class="note">${gg > 0 && info.fino < ymd(OGGI)[2] ? `Dati fino al ${info.fino}: la cifra al giorno vale dal ${info.fino + 1}. ` : ''}Viaggi esclusi dal budget (Fondo viaggi).</div>`, 'hero s5');
+      <div class="note">${gg > 0 && info.fino < ymd(OGGI)[2] ? `Dati fino al ${info.fino}: la cifra al giorno vale dal ${info.fino + 1}. ` : ''}${notaEscl(k)}</div>`, 'hero s5');
   } else {
     const ext = a.ricavi.Extra > 0.5 ? a.ricavi.Extra : 0;
     const av = conExtra() || !ext ? a : { ...a, entrate: a.entrate - ext, utile: a.utile - ext, ricavi: { ...a.ricavi, Extra: 0 } };
@@ -399,7 +434,7 @@ function vistaMese(k, chiusoForzato) {
       <div class="big ${av.utile < 0 ? 'neg' : ''}">${av.utile > 0 ? '+' : ''}${ii}<span class="dec">,${dd} €</span></div>
       <div class="line">savings rate ${av.entrate > 0 ? pct(av.utile / av.entrate) : '–'} · budget usato ${pct(q)}</div>
       ${soldiMese(av, info)}
-      <div class="note">Viaggi esclusi dal budget (Fondo viaggi); l'utile li comprende.</div>`, 'hero s5');
+      <div class="note">${notaEscl(k)} L'utile comprende tutte le spese.</div>`, 'hero s5');
   }
   const p = prec ? 'p' : 'm';
   return headPagina(eyebrow, meseTit(k), chipDati() + (info.corrente ? '' : '<span class="chip">mese chiuso</span>')) + scelta + ins +
@@ -482,18 +517,22 @@ function vistaAnno() {
   tot.pac = somma(a => a.pac); tot.invExtra = somma(a => a.invExtra);
   let ent = entrate;
   const dest = COSTI.map(c => ({ c, v: tot.spese[c] })).filter(x => x.v > 0.5).sort((a, b) => b.v - a.v);
-  const bAnno = c => att.reduce((s, m) => s + (budget(m)[c] || 0), 0);
+  const bAnno = c => att.reduce((s, m) => s + (budget(m, false)[c] || 0), 0);
   const ds = dest.slice(0, 5).map(x => ({ l: x.c, v: x.v, c: COLORI[x.c], over: x.v > bAnno(x.c) + 0.5 ? x.v - bAnno(x.c) : 0 }));
   const resto = dest.slice(5).reduce((s, x) => s + x.v, 0);
   if (resto > 0.5) ds.push({ l: 'Altre spese', v: resto, c: COLORI['Altre spese'] });
   if (tot.pac > 0.5) ds.push({ l: 'PAC', v: tot.pac, c: COLORI.PAC });
   if (tot.invExtra > 0.5) ds.push({ l: 'Investimenti extra', v: tot.invExtra, c: COLORI['Investimenti extra'] });
-  const usc = ds.reduce((s, d) => s + d.v, 0), liq = ent - usc;
+  const tfA = att.map(totFondi).reduce((s, f) => ({ ut: s.ut + f.ut, acc: s.acc + f.acc, dot: s.dot + f.dot }), { ut: 0, acc: 0, dot: 0 });
+  if (tfA.acc > 0.5) ds.push({ l: 'Ai fondi', v: tfA.acc, c: COLORI['Ai fondi'] });
   let lbl = tot.ricavi.Extra > 0 ? 'Stipendio + extra' : 'Stipendio', chipF;
-  if (liq >= 0.5) { ds.push({ l: 'In liquidità', v: liq, c: COLORI['In liquidità'] }); chipF = `<span class="chip mint">${num(liq, 0)} € in liquidità</span>`; }
-  else { ent = usc; lbl = 'Entrate + liquidità'; chipF = `<span class="chip coral">${num(-liq, 0)} € dalla liquidità</span>`; }
-  const cardFlu = acc('aflu', 'Dove vanno i soldi', chipF, `<div class="panel" data-w="aflu">${sankey(larghezza('[data-w="aflu"]') - 28, lbl, ent, ds)}</div>
-    <div class="note">${periodo}.</div>${chiave([['chip', '', 'quanto la categoria è sopra il budget cumulato']])}`, 's7');
+  const fontiA = [[lbl, ent]];
+  if (tfA.ut > 0.5) { fontiA.push(['Dai fondi', tfA.ut]); ent += tfA.ut; lbl += ' + fondi'; }
+  const usc = ds.reduce((s, d) => s + d.v, 0), liq = ent - usc;
+  if (liq >= 0.5) { ds.push({ l: 'In liquidità', v: liq, c: COLORI['In liquidità'], liq: true }); chipF = `<span class="chip mint">${num(liq, 0)} € in liquidità</span>`; }
+  else { ent = usc; fontiA.push(['Dalla liquidità', -liq]); lbl = 'Entrate + liquidità'; chipF = `<span class="chip coral">${num(-liq, 0)} € dalla liquidità</span>`; }
+  const cardFlu = acc('aflu', 'Dove vanno i soldi', chipF, `<div class="panel" data-w="aflu">${sankey(larghezza('[data-w="aflu"]') - 28, lbl, ent, ds, fontiA)}</div>
+    <div class="note">${periodo}. ${notaFlusso(tfA)}</div>${chiave([['chip', '', 'quanto la categoria è sopra il budget cumulato']])}`, 's7');
   // barre mensili impilate
   const W = larghezza('[data-w="abar"]') - 28, H = 200, pT = 18, pB = 22, bw = (W / 12) * 0.62;
   const maxV = Math.max(...mesi.map(m => Math.max(ag[m] ? ag[m].costi : 0, budgetCosti(m)))) * 1.08 || 1;
@@ -513,7 +552,7 @@ function vistaAnno() {
   });
   const legCat = COSTI.filter(c => att.some(m => ag[m].spese[c] > 0)).map(c => `<div><i class="dot" style="background:${COLORI[c]}"></i><span class="n">${esc(c)}</span></div>`).join('');
   const cardBar = acc('abar', 'Spese per mese', `<span class="chip">media ${num(costi / att.length, 0)} €</span>`,
-    `<div class="panel" data-w="abar">${svg(W, H, sb)}</div><div class="legend">${legCat}</div>${chiave([['trattino', '', 'budget del mese (viaggi inclusi)']])}`, 's7');
+    `<div class="panel" data-w="abar">${svg(W, H, sb)}</div><div class="legend">${legCat}</div>${chiave([['trattino', '', 'budget del mese (fondi: accantonamento)']])}`, 's7');
   // cumulata vs budget
   const H2 = 180, pT2 = 22, pB2 = 22;
   let cA = 0, cB = 0; const pa = [], pb = [];
@@ -526,7 +565,7 @@ function vistaAnno() {
   s2 += `<text x="${X2(11)}" y="${Y2(cB) - 8}" text-anchor="end" class="lbl">budget anno ${num(cB, 0)} €</text>`;
   mesi.forEach((m, i) => s2 += `<text x="${X2(i)}" y="${H2 - 4}" text-anchor="middle" class="lbl">${MESI_B[i][0]}</text>`);
   const cardCum = acc('acum', 'Spesa cumulata vs budget', `<span class="chip ${diffC > 0 ? 'coral' : 'mint'}">${num(Math.abs(diffC), 0)} € ${diffC > 0 ? 'sopra' : 'sotto'}</span>`,
-    `<div class="panel">${svg(W, H2, s2)}</div>${chiave([['linea', '', 'spese cumulate'], ['tratt', '', 'budget cumulato']])}<div class="note">Viaggi inclusi. Il budget è stato fissato a ottobre: per i mesi prima è un metro di paragone, non un impegno preso allora.</div>`, 's5');
+    `<div class="panel">${svg(W, H2, s2)}</div>${chiave([['linea', '', 'spese cumulate'], ['tratt', '', 'budget cumulato']])}<div class="note">Viaggi inclusi; per i fondi il budget è l'accantonamento. Il budget è stato fissato a ottobre: per i mesi prima è un metro di paragone, non un impegno preso allora.</div>`, 's5');
   // savings rate mensile
   const sr = mesi.map(m => (ag[m] && chiusi.includes(m) && entrateSR(ag[m]) > 0) ? (entrateSR(ag[m]) - ag[m].costi) / entrateSR(ag[m]) : null);
   const vals = sr.filter(v => v !== null), mxS = Math.max(0.1, ...vals), mnS = Math.min(0, ...vals);
@@ -571,6 +610,15 @@ function vistaAnno() {
 }
 
 /* ------------------------------------------------------------------ posso comprarlo */
+function blocco0(titolo, sub, speso, bud, rest, dopo, imp) {
+    const max = Math.max(bud, speso + imp, 1);
+    return `<div class="blk"><div class="bh"><b>${titolo}</b><span class="muted" style="font-size:13px">${sub}</span></div>
+    <div class="trio"><div><div class="k">Speso</div><div class="v">${eur(speso)}</div></div><div><div class="k">Budget</div><div class="v">${eur(bud)}</div></div><div><div class="k">${rest >= 0 ? 'Restano' : 'Sforato'}</div><div class="v" style="color:${rest >= 0 ? 'inherit' : 'var(--coral-ink)'}">${eur(Math.abs(rest))}</div></div></div>
+    <div class="cap"><i style="width:${Math.max(speso, 0) / max * 100}%;background:var(--ink)"></i><i style="left:${Math.max(speso, 0) / max * 100}%;width:${imp / max * 100}%;background:${dopo >= 0 ? 'var(--mint)' : 'var(--coral)'}"></i>
+    ${bud ? `<b style="position:absolute;left:calc(${bud / max * 100}% - 1px);top:0;bottom:0;width:2px;background:#8B867D"></b>` : ''}</div>
+    <div class="after ${dopo >= 0 ? 'pos' : 'neg'}"><span>Dopo l'acquisto</span><span class="eur">${dopo >= 0 ? 'restano ' + num(dopo) : 'sfori di ' + num(-dopo)} €</span></div></div>`;
+  }
+
 function renderAsk() {
   const chips = document.getElementById('ask-chips');
   chips.innerHTML = COSTI.map(c => `<button data-cat="${esc(c)}" class="${c === stato.askCat ? 'on' : ''}"><i class="dot" style="background:${COLORI[c]}"></i>${esc(c)}</button>`).join('');
@@ -584,18 +632,20 @@ function renderAsk() {
   const spes3 = tre.reduce((s, m) => s + (infoMese(m).importato ? agg(m, infoMese(m).fino).spese[cat] : 0), 0), bud3 = tre.reduce((s, m) => s + (budget(m)[cat] || 0), 0);
   const restM = budM - spesoM, rest3 = bud3 - spes3, dopoM = restM - imp, dopo3 = rest3 - imp;
   let v, tit, txt;
+  if (isFondo(cat, k)) {
+    const fm = fondiMese(k)[cat];
+    [v, tit, txt] = dopoM >= 0 ? ['si', 'Sì', 'Ci sta nel fondo: lo paghi con soldi già accantonati.'] : ['no', 'No', `Il fondo non basta: ${num(-dopoM, 0)} € sarebbero sforamento del mese.`];
+    out.innerHTML = `<div class="verdict ${v}"><div class="w">${tit}</div><p>${txt}</p></div>` +
+      blocco0('Fondo ' + cat, `${meseNome(k)} · tetto ${num(D.fondi.voci[cat].tetto, 0)} €`, spesoM, budM, restM, dopoM, imp) +
+      `<div class="note">Disponibile = saldo a inizio mese ${num(fm.si + fm.dot, 0)} € + accantonamento ${num(fm.acc, 0)} €.</div>`;
+    return;
+  }
   if (dopoM >= 0 && dopo3 >= 0) { v = 'si'; tit = 'Sì'; txt = 'Ci sta sia nel budget del mese sia in quello degli ultimi 3 mesi.'; }
   else if (dopo3 >= 0) { v = 'attento'; tit = 'Attento'; txt = 'Sfori il budget del mese, ma rientri in quello degli ultimi 3 mesi.'; }
   else if (dopoM >= 0) { v = 'attento'; tit = 'Attento'; txt = 'Rientri nel budget del mese, ma sfori quello degli ultimi 3 mesi.'; }
   else { v = 'no'; tit = 'No'; txt = 'Sfori sia il budget del mese sia quello degli ultimi 3 mesi.'; }
-  const blocco = (titolo, sub, speso, bud, rest, dopo) => {
-    const max = Math.max(bud, speso + imp, 1);
-    return `<div class="blk"><div class="bh"><b>${titolo}</b><span class="muted" style="font-size:13px">${sub}</span></div>
-    <div class="trio"><div><div class="k">Speso</div><div class="v">${eur(speso)}</div></div><div><div class="k">Budget</div><div class="v">${eur(bud)}</div></div><div><div class="k">${rest >= 0 ? 'Restano' : 'Sforato'}</div><div class="v" style="color:${rest >= 0 ? 'inherit' : 'var(--coral-ink)'}">${eur(Math.abs(rest))}</div></div></div>
-    <div class="cap"><i style="width:${Math.max(speso, 0) / max * 100}%;background:var(--ink)"></i><i style="left:${Math.max(speso, 0) / max * 100}%;width:${imp / max * 100}%;background:${dopo >= 0 ? 'var(--mint)' : 'var(--coral)'}"></i>
-    ${bud ? `<b style="position:absolute;left:calc(${bud / max * 100}% - 1px);top:0;bottom:0;width:2px;background:#8B867D"></b>` : ''}</div>
-    <div class="after ${dopo >= 0 ? 'pos' : 'neg'}"><span>Dopo l'acquisto</span><span class="eur">${dopo >= 0 ? 'restano ' + num(dopo) : 'sfori di ' + num(-dopo)} €</span></div></div>`;
-  };
+  const blocco = (titolo, sub, speso, bud, rest, dopo) => blocco0(titolo, sub, speso, bud, rest, dopo, imp);
+
   const nota = !info.importato ? `<div class="note">${meseTit(k)} non è ancora importato: il mese risulta senza spese.</div>` :
     info.fino < ymd(OGGI)[2] ? `<div class="note">Spese aggiornate al ${D.data_al.split('-').reverse().join('/')}.</div>` : '';
   out.innerHTML = `<div class="verdict ${v}"><div class="w">${tit}</div><p>${txt}</p></div>` +
