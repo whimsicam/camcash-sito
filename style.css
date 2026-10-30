@@ -341,7 +341,7 @@ details.card.insights .body{padding:0 18px 18px}
 .ins-altre>summary{list-style:none;cursor:pointer;margin-top:12px;text-align:center;font-size:13px;font-weight:700;color:var(--ink-2);padding:9px;border-radius:999px;background:var(--panel)}
 .ins-altre>summary::-webkit-details-marker{display:none}
 .ins-altre[open]>summary{display:none}
-.ins-coppa{margin-top:10px;background:#FFFAEB;border-radius:14px;padding:2px 10px}
+.ins-coppa{margin:10px -10px 0;background:#FFFAEB;border-radius:14px;padding:2px 10px}
 .ins-coppa .ins{border-bottom:0}
 .ins-coppa .ic.c-yel{background:#FFF1C9}
 .brief .k{color:#B07A95}
