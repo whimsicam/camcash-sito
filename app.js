@@ -155,7 +155,7 @@ function donut(items, centro, size = 230) {
   const tot = items.reduce((s, i) => s + i.v, 0) || 1;
   const c = size / 2, R0 = size / 2 - 4, th = 32, r0 = R0 - th, rm = (R0 + r0) / 2, gap = 6;
   const P = (r, a) => `${(c + r * Math.sin(a)).toFixed(2)} ${(c - r * Math.cos(a)).toFixed(2)}`;
-  let a = 0, segs = '';
+  let a = 0, segs = '', defs = '';
   for (const it of items) {
     const span = it.v / tot * 2 * Math.PI, arc = span * rm - gap;
     if (arc <= 0.5) { a += span; continue; }
@@ -165,13 +165,16 @@ function donut(items, centro, size = 230) {
     const path = a1 > a0
       ? `M${P(R, a0)} A${R} ${R} 0 ${big} 1 ${P(R, a1)} L${P(r, a1)} A${r} ${r} 0 ${big} 0 ${P(r, a0)} Z`
       : `M${P(R, (a0 + a1) / 2)} L${P(r, (a0 + a1) / 2)}`;
-    segs += `<path d="${path}" fill="${it.c}" stroke="${it.c}" stroke-width="${2 * cr}" stroke-linejoin="round" stroke-linecap="round"/>`;
+    let f = it.c;
+    if (it.rap) { const id = 'rp' + it.c.replace(/[^0-9A-Za-z]/g, ''); f = `url(#${id})`; if (!defs.includes(id)) defs += `<pattern id="${id}" width="6" height="6" patternUnits="userSpaceOnUse" patternTransform="rotate(45)"><rect width="6" height="6" fill="#fff"/><rect width="3" height="6" fill="${it.c}"/></pattern>`; }
+    segs += `<path d="${path}" fill="${f}" stroke="${f}" stroke-width="${2 * cr}" stroke-linejoin="round" stroke-linecap="round"/>`;
     a += span;
   }
   const testo = `<text x="${c}" y="${c - 24}" text-anchor="middle" style="font-size:11px;font-weight:600;fill:#8B867D;letter-spacing:.06em">${esc(centro.label)}</text>
     <text x="${c}" y="${c}" text-anchor="middle" dominant-baseline="central" style="font-size:26px;font-weight:800;fill:#1C1B1B;letter-spacing:-.03em">${esc(centro.big)}</text>
-    <text x="${c}" y="${c + 30}" text-anchor="middle" style="font-size:12px;font-weight:400;fill:#55524C">${esc(centro.sub)}</text>`;
-  return svg(size, size, segs + testo, 'donut').replace('width="100%"', `width="${size}"`);
+    <text x="${c}" y="${c + 30}" text-anchor="middle" style="font-size:12px;font-weight:400;fill:#55524C">${esc(centro.sub)}</text>` +
+    (centro.rap ? `<text x="${c}" y="${c + 47}" text-anchor="middle" style="font-size:11.5px;font-weight:400;fill:#8B867D">${esc(centro.rap)}</text>` : '');
+  return svg(size, size, (defs ? `<defs>${defs}</defs>` : '') + segs + testo, 'donut').replace('width="100%"', `width="${size}"`);
 }
 
 /* sankey verticale: una barra di entrate in alto che si apre verso le destinazioni */
@@ -256,9 +259,18 @@ function cardCategorie(a, k, id) {
   const tot = righe.reduce((s, r) => s + Math.max(r.v, 0), 0), btot = righe.reduce((s, r) => s + r.b, 0);
   // donut: categorie sotto il 3% raccolte in "Altre spese"
   const items = [], piccole = { c: 'Altre spese', v: 0 };
-  righe.filter(r => r.v > 0).sort((x, y) => y.v - x.v).forEach(r => (r.v / tot < 0.03 ? piccole.v += r.v : items.push({ c: COLORI[r.c], v: r.v })));
+  // spese rapide (provvisorie, dal telefono): parte a righe dello stesso colore
+  const rap = {}; D.tx.forEach(t => { if (t[5] === 'R' && t[1] === k) rap[t[2]] = (rap[t[2]] || 0) - t[4]; });
+  const rapTot = Object.values(rap).reduce((s, v) => s + v, 0);
+  righe.filter(r => r.v > 0).sort((x, y) => y.v - x.v).forEach(r => {
+    if (r.v / tot < 0.03) { piccole.v += r.v; return; }
+    const rp = Math.min(Math.max(rap[r.c] || 0, 0), r.v);
+    if (r.v - rp > 0.004) items.push({ c: COLORI[r.c], v: r.v - rp });
+    if (rp > 0.004) items.push({ c: COLORI[r.c], v: rp, rap: true });
+  });
   if (piccole.v > 0) items.push({ c: COLORI['Altre spese'], v: piccole.v });
-  const res = btot - tot, centro = { label: 'SPESO', big: `${num(tot, 0)}\u00A0€`, sub: btot ? (Math.abs(res) < 0.5 ? 'in linea col budget' : `${num(Math.abs(res), 0)}\u00A0€ ${res > 0 ? 'sotto' : 'oltre'} il budget`) : '' };
+  const res = btot - tot, centro = { label: 'SPESO', big: `${num(tot, 0)}\u00A0€`, sub: btot ? (Math.abs(res) < 0.5 ? 'in linea col budget' : `${num(Math.abs(res), 0)}\u00A0€ ${res > 0 ? 'sotto' : 'oltre'} il budget`) : '',
+    rap: rapTot >= 0.5 ? `di cui ${num(rapTot, 0)}\u00A0€ rapide` : '' };
   const tag = c => isFondo(c, k) ? ' <span class="tag-f">fondo</span>' : '';
   const lista = righe.slice().sort((x, y) => y.v - x.v).map(r => {
     const d = r.v - r.b, over = r.b > 0 ? d > 0.5 : r.v > 0.5;
@@ -271,16 +283,17 @@ function cardCategorie(a, k, id) {
     let dentro, fuori;
     if (r.b > 0) { dentro = Math.min(v, r.b) / r.b * BM; fuori = over > 0 ? Math.min(over / r.b * BM, 100 - BM) : 0; }
     else { dentro = 0; fuori = v > 0 ? Math.min(v / 100 * BM, 100) : 0; }
+    const rp = Math.min(Math.max(rap[r.c] || 0, 0), v), conf = r.b > 0 ? Math.min(v - rp, r.b) / r.b * BM : 0;
     return `<div class="bar-row"><div class="top"><span>${esc(r.c)}${tag(r.c)}</span><span class="v">${over > 0.5 ? `<span class="chip coral sm">+${num(over, 0)} €</span> ` : ''}${eur0(r.v)} <small>/ ${eur0(r.b)}</small></span></div>
-      <div class="bar-track">${dentro ? `<div class="fill" style="width:${dentro}%;background:${COLORI[r.c]}"></div>` : ''}
+      <div class="bar-track">${dentro && rp > 0.004 ? `<div class="fill rap" style="width:${dentro}%;--c:${COLORI[r.c]}"></div>${conf > 0 ? `<div class="fill" style="width:${conf}%;background:${COLORI[r.c]}"></div>` : ''}` : dentro ? `<div class="fill" style="width:${dentro}%;background:${COLORI[r.c]}"></div>` : ''}
       ${fuori ? `<div class="fill over" style="left:${r.b > 0 ? BM : 0}%;width:${fuori}%"></div>` : ''}
       <div class="mark" style="left:calc(${r.b > 0 ? BM : 0}% - 1px)"></div></div></div>`;
-  }).join('') + `<div class="bar-key"><span><i class="mk"></i>budget</span><span><i class="sw" style="background:var(--coral)"></i>oltre il budget</span></div>`;
+  }).join('') + `<div class="bar-key"><span><i class="mk"></i>budget</span><span><i class="sw" style="background:var(--coral)"></i>oltre il budget</span>${rapTot >= 0.5 ? '<span><i class="sw rap"></i>spese rapide</span>' : ''}</div>`;
   const vista = (stato.vistaCat || 'donut');
   return card(`<div class="card-head"><div><h3>Ripartizione spese</h3><div class="card-sub nowrap">Budget ${eur0(btot)}${conFondiAttivi(k) ? ' · ' + pct(tot / (btot || 1)) : ''}</div></div>
     <div class="toggles"><div class="seg ico2" data-seg="vistaCat"><button data-v="donut" title="Ciambella" aria-label="Ciambella" class="${vista === 'donut' ? 'on' : ''}"><svg viewBox="0 0 24 24" class="ico"><circle cx="12" cy="12" r="7.5" stroke-width="3.2" stroke-dasharray="14 3.5"/></svg></button><button data-v="barre" title="Barre" aria-label="Barre" class="${vista === 'barre' ? 'on' : ''}"><svg viewBox="0 0 24 24" class="ico"><path d="M5 7h14M5 12h9M5 17h11" stroke-width="2.6"/></svg></button></div>
     </div></div>
-    ${vista === 'donut' ? `<div class="donut-wrap">${donut(items, centro)}</div><div class="cat-grid">${lista}</div>` : `<div class="bars-list">${barre}</div>`}${conFondiAttivi(k) ? `<div class="note">Fondi: budget = accantonamento del mese, o quanto il fondo copre se lo usi. Oltre il fondo è sforamento.</div>` : ''}`, 's7');
+    ${vista === 'donut' ? `<div class="donut-wrap">${donut(items, centro)}</div><div class="cat-grid">${lista}</div>${rapTot >= 0.5 ? '<div class="bar-key" style="margin-top:10px"><span><i class="sw rap"></i>spese rapide</span></div>' : ''}` : `<div class="bars-list">${barre}</div>`}${conFondiAttivi(k) ? `<div class="note">Fondi: budget = accantonamento del mese, o quanto il fondo copre se lo usi. Oltre il fondo è sforamento.</div>` : ''}`, 's7');
 }
 
 const notaEscl = k => conFondiAttivi(k) ? 'Budget delle spese di tutti i giorni: esclusi i fondi (viaggi, shopping, salute, regali).' : 'Viaggi esclusi dal budget (Fondo viaggi).';
@@ -384,7 +397,7 @@ function colonne(sx, dx, sotto = '') {
 function headPagina(eyebrow, titolo, chips = '') {
   return `<div class="page-head"><div class="eyebrow">${eyebrow}</div><h1>${titolo}</h1><div class="sub">${chips}</div></div>`;
 }
-const chipDati = () => `<span class="chip">dati al ${D.data_al.split('-').reverse().slice(0, 2).join('/')}</span>`;
+const chipDati = k => `<span class="chip">dati al ${(D.data_banca || D.data_al).split('-').reverse().slice(0, 2).join('/')}</span>` + (k && typeof chipRapide === 'function' ? chipRapide(k) : '');
 
 // entrate e spese del mese + barra dello stipendio (spese / investito / resto)
 function soldiMese(a, info) {
@@ -448,7 +461,7 @@ function vistaMese(k, chiusoForzato) {
       <div class="note">${notaEscl(k)} L'utile comprende tutte le spese.</div>`, 'hero s5');
   }
   const p = prec ? 'p' : 'm';
-  return headPagina(eyebrow, meseTit(k), chipDati() + (info.corrente ? '' : '<span class="chip">mese chiuso</span>')) + scelta + ins +
+  return headPagina(eyebrow, meseTit(k), chipDati(k) + (info.corrente ? '' : '<span class="chip">mese chiuso</span>')) + scelta + ins +
     colonne([[1, hero], [3, cardRitmo(a, info, p + 'rit')], [5, cardCalendario(info, p + 'cal')]],
             [[2, cardCategorie(a, k, p + 'cat')], [4, cardFlusso(a, info, p + 'flu')], [6, cardSettimana(info, p + 'set')]]);
 }
@@ -668,7 +681,7 @@ function renderAsk() {
 function renderNav() {
   document.getElementById('tabbar').innerHTML = TABS.map(([id, l]) => `<button class="tab ${stato.tab === id ? 'on' : ''}" data-tab="${id}" aria-label="${l}">${ICONE[id]}<span class="lab">${l}</span></button>`).join('');
   document.getElementById('side-nav').innerHTML = TABS.map(([id, l]) => `<button class="side-tab ${stato.tab === id ? 'on' : ''}" data-tab="${id}">${ICONE[id]}${l}</button>`).join('');
-  document.getElementById('side-data').textContent = 'Dati al ' + D.data_al.split('-').reverse().join('/');
+  document.getElementById('side-data').textContent = 'Dati al ' + (D.data_banca || D.data_al).split('-').reverse().join('/');
 }
 function render() {
   renderNav();
@@ -718,6 +731,7 @@ function avvia(dati) {
   document.getElementById('login').hidden = true;
   document.getElementById('app').hidden = false;
   render();
+  if (typeof dopoAvvio === 'function') dopoAvvio();
 }
 // archivi degli anni chiusi (anno-AAAA.enc.json): stessa password, uniti ai dati dell'anno in corso
 async function caricaTutto(env, pw) {
@@ -732,6 +746,7 @@ async function caricaTutto(env, pw) {
   }
   d.tx.sort((x, y) => x[0] < y[0] ? -1 : x[0] > y[0] ? 1 : 0);
   try { d.nota = await decifra(await (await fetch('nota.enc.json', { cache: 'no-store' })).json(), pw); } catch (e) { d.nota = null; }
+  if (typeof caricaRapide === 'function') { try { await caricaRapide(d, pw); } catch (e) { console.warn('spese rapide non caricate', e); } }
   return d;
 }
 async function init() {
