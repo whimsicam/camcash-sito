@@ -41,8 +41,9 @@ function unisci(o, spese) {
   for (const s of spese) {
     const i = r.spese.findIndex(x => x.id === s.id);
     if (i < 0) r.spese.push(s); else r.spese[i] = s;
-    if (s.ricorda && s.cat) r.ricordati[nomeEs(s.esercente)] = s.cat;
+    if (s.ricorda && s.cat && nomeEs(s.esercente)) r.ricordati[nomeEs(s.esercente)] = s.cat;
   }
+  delete r.ricordati['APPLE PAY']; delete r.ricordati[''];   // nome mancante: mai ricordarlo
   if (!r.dal && r.spese.length) r.dal = r.spese.map(s => s.data).sort()[0];
   return r;
 }
@@ -88,7 +89,7 @@ function nomeEs(s) { return String(s || '').toUpperCase().replace(/\s+/g, ' ').t
 const reEsc = s => s.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
 function categoriaPer(es) {
   const U = nomeEs(es);
-  if (!U) return null;
+  if (!U || U === 'APPLE PAY') return null;
   const ric = unisci(RAP, coda()).ricordati;
   if (ric[U] && COSTI.includes(ric[U])) return ric[U];
   for (const [kw, cat] of (D.regole || [])) {
@@ -129,7 +130,7 @@ function foglio(html) {
 }
 const ora = s => s.ts.slice(11, 16);
 const tile = (s, cat) => `<div class="rs-tile"><div class="ic" style="${cat ? `background:${COLORI[cat]}33` : ''}">${cat ? `<i class="dot" style="background:${COLORI[cat]}"></i>` : '?'}</div>
-  <div class="tx"><div class="m">${esc(s.esercente)}</div><div class="w">oggi ${ora(s)}</div></div><div class="amt">${num(s.imp)} €</div></div>`;
+  <div class="tx"><div class="m">${esc(s.esercente || 'Esercente sconosciuto')}</div><div class="w">oggi ${ora(s)}</div></div><div class="amt">${num(s.imp)} €</div></div>`;
 function avviso(esito) {
   if (esito === 'ok') return '';
   if (esito === 'token') return `<div class="rs-tok"><div class="q">Collega GitHub (una volta su questo dispositivo)</div>
@@ -155,10 +156,10 @@ function fogliofatto(s, prima, esito) {
 function foglioScegli(s) {
   const w = foglio(tile(s, null) + `<div class="rs-q">Dove la metto?</div><div class="rs-grid">${CAT_RAPIDE.filter(c => COSTI.includes(c))
     .map(c => `<button data-rcat="${esc(c)}"><i style="background:${COLORI[c]}"></i>${esc(c)}</button>`).join('')}</div>
-    <label class="check rs-check"><input type="checkbox" id="rs-ric" checked> Ricorda per questo esercente</label>`);
+    ${s.esercente ? '<label class="check rs-check"><input type="checkbox" id="rs-ric" checked> Ricorda per questo esercente</label>' : ''}`);
   w.querySelectorAll('[data-rcat]').forEach(b => b.addEventListener('click', () => {
     w.querySelectorAll('[data-rcat]').forEach(x => x.classList.toggle('sel', x === b));
-    s.cat = b.dataset.rcat; s.ricorda = w.querySelector('#rs-ric').checked;
+    s.cat = b.dataset.rcat; const ric = w.querySelector('#rs-ric'); s.ricorda = !!(ric && ric.checked);
     setTimeout(() => salva(s), 180);
   }));
 }
@@ -182,9 +183,9 @@ function dopoAvvio() {
     const imp = importoDa(p.get('i'));
     if (imp) {
       const n = new Date(), hh = String(n.getHours()).padStart(2, '0'), mm = String(n.getMinutes()).padStart(2, '0');
-      const es = (p.get('m') || '').trim() || 'Apple Pay';
+      const es = (p.get('m') || '').trim();
       const s = { id: `${OGGI}T${hh}${mm}-${imp.toFixed(2)}-${nomeEs(es).replace(/[^A-Z0-9]/g, '').slice(0, 16)}`, ts: `${OGGI}T${hh}:${mm}`,
-        data: OGGI, imp, esercente: es, carta: (p.get('c') || '').trim(), cat: null, ricorda: false };
+        data: OGGI, imp, esercente: es, carta: (p.get('c') || '').trim(), cat: null, ricorda: false, raw: h.slice(0, 300) };
       if (!tutteRapide().some(x => x.id === s.id)) {
         const cat = categoriaPer(es);
         if (cat) { s.cat = cat; salva(s); } else foglioScegli(s);
