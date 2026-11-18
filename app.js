@@ -23,7 +23,7 @@ const ICONE = {
     Array.from({ length: 12 }, (_, i) => { const a = i / 12 * 2 * Math.PI - Math.PI / 2; return `<circle cx="${(12 + 8.5 * Math.cos(a)).toFixed(2)}" cy="${(12 + 8.5 * Math.sin(a)).toFixed(2)}" r="${i === 0 ? 2.1 : 1.45}"/>`; }).join('') + '</svg>'
 };
 const CHEV = '<svg viewBox="0 0 24 24" class="chev ico"><path d="m6 9 6 6 6-6"/></svg>';
-const TABS = [['mese', 'Mese'], ['prec', 'Mesi'], ['conf', 'Confronto'], ['anno', 'Anno']];
+const TABS = [['mese', 'Mese'], ['prec', 'Mesi'], ['conf', 'Confronto'], ['anno', 'Anno'], ['gior', 'Giornale']];
 
 /* ------------------------------------------------------------------ formato */
 function num(v, dec = 2) {
@@ -274,7 +274,7 @@ function cardCategorie(a, k, id) {
   const tag = c => isFondo(c, k) ? ' <span class="tag-f">fondo</span>' : '';
   const lista = righe.slice().sort((x, y) => y.v - x.v).map(r => {
     const d = r.v - r.b, over = r.b > 0 ? d > 0.5 : r.v > 0.5;
-    return `<div class="cg"><div class="l1"><i class="dot" style="background:${COLORI[r.c]}"></i><span class="n">${esc(r.c)}${tag(r.c)}</span><span class="a">${eur0(r.v)}</span></div>
+    return `<div class="cg" data-gio="${esc(r.c)}" data-gm="${k}"><div class="l1"><i class="dot" style="background:${COLORI[r.c]}"></i><span class="n">${esc(r.c)}${tag(r.c)}</span><span class="a">${eur0(r.v)}</span></div>
       <div class="l2">${over ? `<span class="chip coral sm">+${num(d, 0)} €</span>` : '<span></span>'}<small>su ${eur0(r.b)}</small></div></div>`;
   }).join('');
   const BM = 70; // posizione della tacca del budget (% della larghezza), uguale per tutte
@@ -284,7 +284,7 @@ function cardCategorie(a, k, id) {
     if (r.b > 0) { dentro = Math.min(v, r.b) / r.b * BM; fuori = over > 0 ? Math.min(over / r.b * BM, 100 - BM) : 0; }
     else { dentro = 0; fuori = v > 0 ? Math.min(v / 100 * BM, 100) : 0; }
     const rp = Math.min(Math.max(rap[r.c] || 0, 0), v), conf = r.b > 0 ? Math.min(v - rp, r.b) / r.b * BM : 0;
-    return `<div class="bar-row"><div class="top"><span>${esc(r.c)}${tag(r.c)}</span><span class="v">${over > 0.5 ? `<span class="chip coral sm">+${num(over, 0)} €</span> ` : ''}${eur0(r.v)} <small>/ ${eur0(r.b)}</small></span></div>
+    return `<div class="bar-row" data-gio="${esc(r.c)}" data-gm="${k}"><div class="top"><span>${esc(r.c)}${tag(r.c)}</span><span class="v">${over > 0.5 ? `<span class="chip coral sm">+${num(over, 0)} €</span> ` : ''}${eur0(r.v)} <small>/ ${eur0(r.b)}</small></span></div>
       <div class="bar-track">${dentro && rp > 0.004 ? `<div class="fill rap" style="width:${dentro}%;--c:${COLORI[r.c]}"></div>${conf > 0 ? `<div class="fill" style="width:${conf}%;background:${COLORI[r.c]}"></div>` : ''}` : dentro ? `<div class="fill" style="width:${dentro}%;background:${COLORI[r.c]}"></div>` : ''}
       ${fuori ? `<div class="fill over" style="left:${r.b > 0 ? BM : 0}%;width:${fuori}%"></div>` : ''}
       <div class="mark" style="left:calc(${r.b > 0 ? BM : 0}% - 1px)"></div></div></div>`;
@@ -491,7 +491,7 @@ function vistaConfronto() {
   const maxD = Math.max(...righe.map(x => Math.abs(x.d)), 1);
   const div = righe.slice().sort((x, y) => y.d - x.d).map(x => {
     const w = Math.abs(x.d) / maxD * 50, cls = x.d > 0 ? 'coral' : 'mint';
-    return `<div class="div-row"><div class="top"><span>${esc(x.c)}${isFondo(x.c, k) && (fondiMese(k)[x.c] || {}).ut > 0.5 ? ' <span class="tag-f">fondo</span>' : ''}</span><span class="v ${Math.abs(x.d) < 0.5 ? '' : cls}">${sgn(x.d)}</span></div>
+    return `<div class="div-row" data-gio="${esc(x.c)}" data-gm="${k}"><div class="top"><span>${esc(x.c)}${isFondo(x.c, k) && (fondiMese(k)[x.c] || {}).ut > 0.5 ? ' <span class="tag-f">fondo</span>' : ''}</span><span class="v ${Math.abs(x.d) < 0.5 ? '' : cls}">${sgn(x.d)}</span></div>
       <div class="div-track"><div class="axis"></div><div class="f" style="${x.d > 0 ? `left:50%;width:${w}%;background:var(--coral)` : `left:${50 - w}%;width:${w}%;background:var(--mint)`}"></div></div></div>`;
   }).join('');
   const piu = righe.filter(x => x.d > 0.5).length, meno = righe.filter(x => x.d < -0.5).length;
@@ -506,7 +506,7 @@ function vistaConfronto() {
     `<div class="panel" data-w="crit">${ritmo(larghezza('[data-w="crit"]') - 28, n, ptsCur, 0, { rif: ptsRif, etichetta: `${g} · ${num(c, 0)} €` })}</div>
      ${chiave([['linea', '', meseTit(k)], ['linea', '#C3A6EE', rifNome[0].toUpperCase() + rifNome.slice(1)]])}<div class="note">Spesa cumulata senza viaggi.</div>`, 's5');
   const maxP = Math.max(...righe.map(x => Math.max(x.a, x.r)), 1);
-  const pair = righe.slice().sort((x, y) => y.a - x.a).map(x => `<div class="pair"><div class="bar-row"><div class="top"><span>${esc(x.c)}${isFondo(x.c, k) && (fondiMese(k)[x.c] || {}).ut > 0.5 ? ' <span class="tag-f">fondo</span>' : ''}</span><span class="v">${eur0(x.a)} <small>vs ${eur0(x.r)}</small></span></div></div>
+  const pair = righe.slice().sort((x, y) => y.a - x.a).map(x => `<div class="pair" data-gio="${esc(x.c)}" data-gm="${k}"><div class="bar-row"><div class="top"><span>${esc(x.c)}${isFondo(x.c, k) && (fondiMese(k)[x.c] || {}).ut > 0.5 ? ' <span class="tag-f">fondo</span>' : ''}</span><span class="v">${eur0(x.a)} <small>vs ${eur0(x.r)}</small></span></div></div>
       <div class="tr"><i style="width:${Math.max(x.a, 0) / maxP * 100}%;background:${COLORI[x.c]}"></i></div><div class="tr"><i style="width:${Math.max(x.r, 0) / maxP * 100}%;background:#D9D4CB"></i></div></div>`).join('');
   const cardPair = acc('cpair', 'Categorie a confronto', `<span class="chip">${righe.length} categorie</span>`,
     `<div class="panel"><div class="bars-list" style="margin-top:0">${pair}</div></div>${chiave([['bar', '#B8C0EC', meseTit(k)], ['bar', '#D9D4CB', rifNome[0].toUpperCase() + rifNome.slice(1)]])}`, 's7');
@@ -679,8 +679,8 @@ function renderAsk() {
 
 /* ------------------------------------------------------------------ navigazione */
 function renderNav() {
-  document.getElementById('tabbar').innerHTML = TABS.map(([id, l]) => `<button class="tab ${stato.tab === id ? 'on' : ''}" data-tab="${id}" aria-label="${l}">${ICONE[id]}<span class="lab">${l}</span></button>`).join('');
-  document.getElementById('side-nav').innerHTML = TABS.map(([id, l]) => `<button class="side-tab ${stato.tab === id ? 'on' : ''}" data-tab="${id}">${ICONE[id]}${l}</button>`).join('');
+  document.getElementById('tabbar').innerHTML = TABS.map(([id, l]) => `<button class="tab ${stato.tab === id ? 'on' : ''}" data-tab="${id}" aria-label="${l}">${ICONE[id] || ICONA_GIORNALE}<span class="lab">${l}</span></button>`).join('');
+  document.getElementById('side-nav').innerHTML = TABS.map(([id, l]) => `<button class="side-tab ${stato.tab === id ? 'on' : ''}" data-tab="${id}">${ICONE[id] || ICONA_GIORNALE}${l}</button>`).join('');
   document.getElementById('side-data').textContent = 'Dati al ' + (D.data_banca || D.data_al).split('-').reverse().join('/');
 }
 function render() {
@@ -689,7 +689,7 @@ function render() {
   const k = meseDi(OGGI);
   // primo passaggio per misurare le larghezze, secondo con le misure giuste
   for (let i = 0; i < 2; i++) {
-    v.innerHTML = stato.tab === 'mese' ? vistaMese(k, false) : stato.tab === 'prec' ? vistaMese(mesiConDati().includes(stato.meseSel) && stato.meseSel !== k ? stato.meseSel : sposta(k, -1), true) : stato.tab === 'conf' ? vistaConfronto() : vistaAnno();
+    v.innerHTML = stato.tab === 'mese' ? vistaMese(k, false) : stato.tab === 'prec' ? vistaMese(mesiConDati().includes(stato.meseSel) && stato.meseSel !== k ? stato.meseSel : sposta(k, -1), true) : stato.tab === 'conf' ? vistaConfronto() : stato.tab === 'gior' ? vistaGiornale() : vistaAnno();
     if (i === 0) v.querySelectorAll('details.card').forEach(d => d.open = true);
   }
   v.querySelectorAll('[data-mchips]').forEach(r => { const on = r.querySelector('.on'); if (on) r.scrollLeft = on.offsetLeft - r.clientWidth / 2 + on.clientWidth / 2; });

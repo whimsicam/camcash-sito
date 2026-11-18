@@ -394,3 +394,46 @@ details.card.insights .body{padding:0 18px 18px}
 .rs-tok .q{font-size:13px;font-weight:600;color:var(--ink-2)}
 .rs-tok input{font:inherit;font-size:15px;padding:12px 14px;border-radius:14px;border:1.5px solid var(--line);background:var(--bg)}
 .rs-err{text-align:center}
+
+/* giornale */
+.gchips{display:flex;gap:6px;overflow-x:auto;-webkit-overflow-scrolling:touch;scrollbar-width:none;margin:-6px -16px 12px;padding:2px 16px}
+.gchips::-webkit-scrollbar{display:none}
+.gchips button{flex:none;border:0;border-radius:999px;padding:7px 12px;background:var(--card);font-size:13px;font-weight:500;display:flex;gap:6px;align-items:center;box-shadow:var(--shadow);color:var(--ink)}
+.gchips button.on{background:var(--ink);color:#fff;font-weight:600}
+.gchips button .dot{width:9px;height:9px}
+.gchips.sub button{background:var(--panel);box-shadow:none;font-size:12.5px;padding:6px 11px}
+.gchips.sub button.on{background:var(--ink-2);color:#fff}
+.gchips.sub small{color:inherit;opacity:.7;font-weight:500}
+.mchips button.anno{background:var(--panel);box-shadow:none}
+.mchips button.anno.on{background:var(--ink);color:#fff}
+.g-wrap{display:flex;flex-direction:column;gap:14px}
+.g-sum .label{font-size:14px;color:var(--ink-2);font-weight:500}
+.g-sum .g-big{font-size:38px;font-weight:800;letter-spacing:-.035em;line-height:1.05;margin:6px 0 4px;white-space:nowrap}
+.g-sum .g-big .dec{font-size:.55em;letter-spacing:-.01em}
+.g-sum .line{font-size:14px;color:var(--ink-2)}
+.g-sum .line .neg{color:var(--coral-ink);font-weight:600}
+.g-sum .line .pos{color:var(--mint-ink);font-weight:600}
+.g-list{padding:6px 20px 10px}
+.g-day+.g-day{border-top:1px solid var(--line)}
+.g-dh{display:flex;justify-content:space-between;align-items:baseline;padding:14px 0 6px;font-size:12px;font-weight:600;letter-spacing:.04em;text-transform:uppercase;color:var(--muted)}
+.g-dh b{font-size:12.5px;color:var(--ink-2);letter-spacing:0}
+.g-row{display:flex;align-items:center;gap:10px;padding:7px 0}
+.g-row .dot{width:10px;height:10px}
+.g-row .tx{flex:1;min-width:0}
+.g-row .n{font-size:14.5px;font-weight:600;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.g-row .d{font-size:12px;color:var(--muted);margin-top:2px;display:flex;gap:6px;align-items:center;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.g-row .a{font-weight:700;font-size:14.5px;white-space:nowrap}
+.g-row .a.pos{color:var(--mint-ink)}
+.g-row.rap .a{color:var(--ink-2)}
+[data-gio]{cursor:pointer}
+@media (min-width:1000px){
+  .gchips{margin:-6px 0 14px;padding:2px 0;flex-wrap:wrap}
+  .g-wrap{display:grid;grid-template-columns:minmax(260px,340px) 1fr;align-items:start}
+  .g-sum{position:sticky;top:20px}
+}
+/* 5 schede: sul telefono stretto solo icone (la scheda attiva resta evidenziata) */
+@media (max-width:430px){
+  .tab{min-width:44px;padding:0 10px}
+  .tab.on{padding:0 10px}
+  .tab.on .lab{display:none}
+}

@@ -68,7 +68,7 @@ async function inviaCoda() {
 
 /* ---------------------------------------------------------------- dati: le spese rapide entrano nei movimenti */
 const tutteRapide = () => unisci(RAP, coda()).spese;
-function txRapida(s) { return [s.data, s.data.slice(0, 7), s.cat || 'Other', '', -Math.abs(+s.imp), 'R']; }
+function txRapida(s) { return [s.data, s.data.slice(0, 7), s.cat || 'Other', '', -Math.abs(+s.imp), 'R', (s.esercente || '').trim() && nomeEs(s.esercente) !== 'APPLE PAY' ? s.esercente.trim() : '']; }
 // chiamata da caricaTutto(): stessi movimenti per tutti i calcoli (grafici, ritmo, Posso comprarlo, insights)
 async function caricaRapide(d, pw) {
   RAP_PW = pw;
