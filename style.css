@@ -417,12 +417,13 @@ details.card.insights .body{padding:0 18px 18px}
 .g-day+.g-day{border-top:1px solid var(--line)}
 .g-dh{display:flex;justify-content:space-between;align-items:baseline;padding:14px 0 6px;font-size:12px;font-weight:600;letter-spacing:.04em;text-transform:uppercase;color:var(--muted)}
 .g-dh b{font-size:12.5px;color:var(--ink-2);letter-spacing:0}
-.g-row{display:flex;align-items:center;gap:10px;padding:7px 0}
-.g-row .dot{width:10px;height:10px}
+.g-row{display:flex;align-items:flex-start;gap:10px;padding:7px 0}
+.g-row .dot{width:10px;height:10px;margin-top:calc((1.3em - 10px) / 2);font-size:14.5px}
+.g-row .n{line-height:1.3}
 .g-row .tx{flex:1;min-width:0}
 .g-row .n{font-size:14.5px;font-weight:600;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
 .g-row .d{font-size:12px;color:var(--muted);margin-top:2px;display:flex;gap:6px;align-items:center;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
-.g-row .a{font-weight:700;font-size:14.5px;white-space:nowrap}
+.g-row .a{font-weight:700;font-size:14.5px;white-space:nowrap;align-self:center}
 .g-row .a.pos{color:var(--mint-ink)}
 .g-row.rap .a{color:var(--ink-2)}
 [data-gio]{cursor:pointer}
