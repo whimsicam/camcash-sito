@@ -64,9 +64,9 @@ function vistaGiornale() {
     const righe = rs.slice().sort((a, b) => a[4] - b[4]).map(t => {
       const rimb = t[4] > 0, nm = nomeMov(t);
       const dett = [...new Set((t[6] ? [cat ? '' : t[2], t[3]] : [cat || !t[3] ? '' : t[2]]).filter(Boolean))].filter(x => x !== nm).join(' · ');
-      const pall = t[5] === 'R' ? `background:transparent;border:1.6px dashed ${COLORI[t[2]]}` : `background:${COLORI[t[2]]}`;
+      const pall = t[5] === 'R' ? `background:repeating-linear-gradient(45deg,${COLORI[t[2]]} 0 2px,#fff 2px 4px);box-shadow:inset 0 0 0 1px ${COLORI[t[2]]}` : `background:${COLORI[t[2]]}`;
       return `<div class="g-row ${t[5] === 'R' ? 'rap' : ''}"><i class="dot" style="${pall}"></i>
-        <div class="tx"><div class="n">${esc(nm)}</div>${dett || t[5] === 'R' || rimb ? `<div class="d">${t[5] === 'R' ? '<span class="chip prov">rapida</span>' : ''}${rimb ? '<span class="chip mint sm">rimborso</span>' : ''}${esc(dett)}</div>` : ''}</div>
+        <div class="tx"><div class="n">${esc(nm)}</div><div class="d">${rimb ? '<span class="chip mint sm">rimborso</span>' : ''}${dett ? esc(dett) : '&nbsp;'}</div></div>
         <div class="a ${rimb ? 'pos' : ''}">${rimb ? '+' : ''}${num(Math.abs(t[4]))} €</div></div>`;
     }).join('');
     return `<div class="g-day"><div class="g-dh"><span>${GIORNI_L[dow(y, m, g)]} ${g} ${MESI[m - 1]}${anno || y !== ymd(OGGI)[0] ? ' ' + y : ''}</span><b>${num(tg)} €</b></div>${righe}</div>`;
